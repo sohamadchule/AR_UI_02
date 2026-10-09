@@ -1,0 +1,28 @@
+import { existsSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import express from 'express';
+import { api } from './routes.mjs';
+
+const app = express();
+app.disable('x-powered-by');
+app.set('trust proxy', true);
+
+app.use('/api', api);
+app.use('/api', (_req, res) => res.status(404).json({ error: 'Not found' }));
+
+// Production: serve the built site and fall back to index.html for client routes.
+const dist = join(dirname(fileURLToPath(import.meta.url)), '..', 'dist');
+if (existsSync(dist)) {
+  app.use(express.static(dist, { index: false, maxAge: '1h' }));
+  app.get('*', (_req, res) => res.sendFile(join(dist, 'index.html')));
+}
+
+// eslint-disable-next-line no-unused-vars
+app.use((err, _req, res, _next) => {
+  console.error(err);
+  res.status(500).json({ error: 'Internal server error' });
+});
+
+const port = Number(process.env.API_PORT ?? 3001);
+app.listen(port, () => console.log(`API listening on http://localhost:${port}`));

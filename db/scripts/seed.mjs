@@ -1,0 +1,110 @@
+// Loads the starter catalog and stores the GLB files in the database.
+// Idempotent: re-running changes nothing unless a model file's content changed,
+// in which case a new model_asset version is recorded and made current.
+import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { DB_DIR, connect } from './lib.mjs';
+import { glbMeta } from './glb.mjs';
+
+const MODELS = join(DB_DIR, 'seed', 'models');
+
+const CATEGORIES = [
+  { slug: 'seating', name: 'Seating' },
+  { slug: 'lighting', name: 'Lighting' },
+];
+
+const PRODUCTS = [
+  {
+    slug: 'upholstered-dining-chair',
+    category: 'seating',
+    name: 'Upholstered Dining Chair',
+    description: 'High-back dining chair with a solid wood frame and upholstered seat.',
+    variants: [
+      { sku: 'CHAIR-STD', name: 'Standard', material: 'Plain fabric', isDefault: true, file: 'chair.glb' },
+      { sku: 'CHAIR-DMK', name: 'Damask', material: 'Damask fabric', isDefault: false, file: 'chair-damask.glb' },
+    ],
+  },
+  {
+    slug: 'table-lamp',
+    category: 'lighting',
+    name: 'Table Lamp',
+    description: 'Compact table lamp.',
+    variants: [{ sku: 'LAMP-STD', name: 'Standard', material: null, isDefault: true, file: 'lamp.glb' }],
+  },
+];
+
+const db = connect();
+await db.connect();
+try {
+  await db.query('BEGIN');
+
+  const categoryId = new Map();
+  for (const c of CATEGORIES) {
+    const { rows } = await db.query(
+      `INSERT INTO category (slug, name) VALUES ($1, $2)
+       ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name RETURNING id`,
+      [c.slug, c.name],
+    );
+    categoryId.set(c.slug, rows[0].id);
+  }
+
+  for (const p of PRODUCTS) {
+    const { rows: [product] } = await db.query(
+      `INSERT INTO product (category_id, slug, name, description, status)
+       VALUES ($1, $2, $3, $4, 'active')
+       ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name, description = EXCLUDED.description
+       RETURNING id`,
+      [categoryId.get(p.category), p.slug, p.name, p.description],
+    );
+
+    let order = 0;
+    for (const v of p.variants) {
+      const { rows: [variant] } = await db.query(
+        `INSERT INTO product_variant (product_id, sku, name, material, is_default, sort_order)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (sku) DO UPDATE SET name = EXCLUDED.name, material = EXCLUDED.material,
+           is_default = EXCLUDED.is_default, sort_order = EXCLUDED.sort_order
+         RETURNING id`,
+        [product.id, v.sku, v.name, v.material, v.isDefault, order++],
+      );
+
+      const bytes = readFileSync(join(MODELS, v.file));
+      const meta = glbMeta(bytes); // also validates the container
+      const sha = createHash('sha256').update(bytes).digest('hex');
+
+      await db.query(
+        `INSERT INTO model_blob (sha256, content, size_bytes) VALUES ($1, $2, $3)
+         ON CONFLICT (sha256) DO NOTHING`,
+        [sha, bytes, bytes.length],
+      );
+
+      const { rows: [current] } = await db.query(
+        'SELECT blob_sha256, version FROM model_asset WHERE variant_id = $1 AND is_current',
+        [variant.id],
+      );
+      if (current?.blob_sha256 === sha) {
+        console.log(`unchanged  ${v.sku.padEnd(10)} ${v.file}`);
+        continue;
+      }
+      const { rows: [{ next }] } = await db.query(
+        'SELECT COALESCE(MAX(version), 0) + 1 AS next FROM model_asset WHERE variant_id = $1',
+        [variant.id],
+      );
+      await db.query('UPDATE model_asset SET is_current = false WHERE variant_id = $1 AND is_current', [variant.id]);
+      await db.query(
+        `INSERT INTO model_asset (variant_id, blob_sha256, version, is_current, original_filename, meta)
+         VALUES ($1, $2, $3, true, $4, $5)`,
+        [variant.id, sha, next, v.file, JSON.stringify(meta)],
+      );
+      console.log(`stored     ${v.sku.padEnd(10)} ${v.file}  v${next}  ${(bytes.length / 1024).toFixed(0)} KB`);
+    }
+  }
+
+  await db.query('COMMIT');
+} catch (err) {
+  await db.query('ROLLBACK');
+  throw err;
+} finally {
+  await db.end();
+}
