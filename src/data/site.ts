@@ -3,6 +3,9 @@ export const SITE = {
   platform: 'Akruti Platform',
 } as const;
 
+/** Dedicated "request a demo" page (the form + the pitch around it). */
+export const DEMO_PATH = '/request-demo';
+
 export interface NavLink {
   label: string;
   /** Router destination. Hash targets scroll to a section on the home page. */

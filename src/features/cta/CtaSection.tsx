@@ -1,6 +1,7 @@
+import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
-import { SITE } from '@/data/site';
-import { Button } from '@/components/ui/Button';
+import { DEMO_PATH, SITE } from '@/data/site';
+import { buttonClasses } from '@/components/ui/Button';
 import { Reveal } from '@/components/ui/Reveal';
 
 export function CtaSection() {
@@ -19,9 +20,10 @@ export function CtaSection() {
           <br />
           future of your brand?
         </h2>
-        <Button size="lg" icon={<ArrowRight size={16} aria-hidden />} className="px-10">
+        <Link to={DEMO_PATH} className={buttonClasses('primary', 'lg', 'px-10')}>
           Request an Exclusive Demo
-        </Button>
+          <ArrowRight size={16} aria-hidden className="transition-transform group-hover:translate-x-1" />
+        </Link>
       </Reveal>
     </section>
   );
