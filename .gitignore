@@ -1,0 +1,8 @@
+node_modules
+dist
+*.local
+.DS_Store
+.env
+
+# database data (seed models, etc.) - not pushed
+db/seed/
