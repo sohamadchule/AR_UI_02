@@ -38,3 +38,82 @@ export const fetchShareUrl = (id: string) => getJson<{ url: string }>(`/api/vari
 
 /** The stable public page for a variant: the target a QR code encodes. */
 export const viewPath = (id: string) => `/view/${id}`;
+
+export interface DemoRequestInput {
+  name: string;
+  email: string;
+  company: string;
+  phone?: string;
+  role?: string;
+  interest?: string;
+  message?: string;
+  /** Honeypot: must stay empty. */
+  website?: string;
+}
+
+export class ApiValidationError extends Error {
+  constructor(message: string, public fieldErrors: Partial<Record<keyof DemoRequestInput, string>> = {}) {
+    super(message);
+  }
+}
+
+/** 'sent': a confirmation link was emailed. 'verified': this address was confirmed before. */
+export type DemoSubmitResult = 'sent' | 'verified';
+
+export async function submitDemoRequest(input: DemoRequestInput): Promise<DemoSubmitResult> {
+  const res = await fetch('/api/demo-requests', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (res.ok) return ((await res.json().catch(() => ({}))) as { verification?: DemoSubmitResult }).verification ?? 'sent';
+  const body = (await res.json().catch(() => ({}))) as { error?: string; errors?: ApiValidationError['fieldErrors'] };
+  throw new ApiValidationError(body.error ?? `Request failed (${res.status})`, body.errors);
+}
+
+export async function verifyDemoEmail(token: string): Promise<void> {
+  const res = await fetch('/api/demo-requests/verify', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ token }),
+  });
+  if (res.ok) return;
+  const body = (await res.json().catch(() => ({}))) as { error?: string };
+  throw new Error(body.error ?? `Request failed (${res.status})`);
+}
+
+export type DemoStatus = 'new' | 'contacted' | 'closed';
+
+export interface DemoRequestRow {
+  id: string;
+  name: string;
+  email: string;
+  company: string;
+  phone: string | null;
+  role: string | null;
+  interest: string | null;
+  message: string | null;
+  status: DemoStatus;
+  confirmation_sent: boolean;
+  email_verified_at: string | null;
+  created_at: string;
+}
+
+async function adminFetch<T>(token: string, path: string, init: RequestInit = {}): Promise<T> {
+  const res = await fetch(path, {
+    ...init,
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+  });
+  if (res.status === 401) throw new Error('Invalid admin token');
+  if (!res.ok) throw new Error(`Request failed (${res.status})`);
+  return res.json() as Promise<T>;
+}
+
+export const fetchDemoRequests = (token: string) =>
+  adminFetch<{ requests: DemoRequestRow[] }>(token, '/api/demo-requests').then((r) => r.requests);
+
+export const updateDemoStatus = (token: string, id: string, status: DemoStatus) =>
+  adminFetch<{ request: DemoRequestRow }>(token, `/api/demo-requests/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
+  }).then((r) => r.request);

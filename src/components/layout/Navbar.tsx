@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Cuboid, Menu, X } from 'lucide-react';
-import { NAV_LINKS, SITE } from '@/data/site';
+import { DEMO_PATH, NAV_LINKS, SITE } from '@/data/site';
 import { useScrollDirection } from '@/hooks/useScrollDirection';
-import { Button } from '@/components/ui/Button';
+import { buttonClasses } from '@/components/ui/Button';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import { cn } from '@/lib/cn';
 
@@ -61,9 +61,9 @@ export function Navbar() {
           ))}
           <span aria-hidden className="h-5 w-px bg-line/15" />
           <ThemeToggle />
-          <Button variant="outline" size="md" className="h-10">
-            Request Access
-          </Button>
+          <Link to={DEMO_PATH} className={buttonClasses('outline', 'md', 'h-10')}>
+            Request Demo
+          </Link>
         </nav>
 
         <button
@@ -93,9 +93,9 @@ export function Navbar() {
             {link.label}
           </Link>
         ))}
-        <Button variant="outline" onClick={close} className="mt-4">
-          Request Access
-        </Button>
+        <Link to={DEMO_PATH} onClick={close} className={buttonClasses('outline', 'lg', 'mt-4')}>
+          Request Demo
+        </Link>
         <ThemeToggle className="mt-2" />
       </div>
     </header>
