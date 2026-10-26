@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import express from 'express';
-import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { promises as dns } from 'node:dns';
+import { requireAdmin } from './auth.mjs';
 import { pool } from './db.mjs';
 import { sendConfirmation, sendTeamNotification, sendVerification } from './mailer.mjs';
 import { resolveBaseUrl } from './url.mjs';
@@ -56,16 +57,6 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // Repeat requests (same email + same interest) inside this window get no confirmation mail.
 const cooldownHours = () => Number(process.env.DEMO_MAIL_COOLDOWN_HOURS) || 24;
-
-function isAdmin(req) {
-  const token = process.env.ADMIN_TOKEN;
-  const given = /^Bearer (.+)$/.exec(req.get('authorization') ?? '')?.[1];
-  if (!token || !given) return false;
-  const a = Buffer.from(given);
-  const b = Buffer.from(token);
-  return a.length === b.length && timingSafeEqual(a, b);
-}
-const requireAdmin = (req, res, next) => (isAdmin(req) ? next() : res.status(401).json({ error: 'Unauthorized' }));
 
 const sha256 = (v) => createHash('sha256').update(v).digest('hex');
 const TOKEN_TTL_HOURS = 72; // longer than any cooldown, so a suppressed resend can't strand the visitor

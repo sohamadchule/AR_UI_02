@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import QRCode from 'qrcode';
-import { getModelFile, getVariant, listVariants } from './catalog.mjs';
+import { getModelBlob, getModelFile, getVariant, listVariants } from './catalog.mjs';
 import { buildViewUrl } from './url.mjs';
 
 export const api = Router();
@@ -22,20 +22,32 @@ api.get('/variants/:id', wrap(async (req, res) => {
   res.json({ variant });
 }));
 
-// GET /api/variants/:id/model: the current GLB, streamed from the database.
-// The URL carries ?v=<hash prefix>, so the response is safe to cache forever.
-api.get('/variants/:id/model', wrap(async (req, res) => {
-  const file = await getModelFile(req.params.id);
-  if (!file) return notFound(res, 'Model not found');
+/** Stream GLB bytes with an ETag; `immutable` only when the URL itself names the content. */
+function sendGlb(req, res, file, immutable) {
   const etag = `"${file.sha256}"`;
-  res.set({ ETag: etag, 'Cache-Control': 'public, max-age=31536000, immutable' });
+  res.set({ ETag: etag, 'Cache-Control': immutable ? 'public, max-age=31536000, immutable' : 'public, max-age=0, must-revalidate' });
   if (req.get('if-none-match') === etag) return res.status(304).end();
   res.set({
-    'Content-Type': file.content_type,
+    'Content-Type': 'model/gltf-binary',
     'Content-Length': String(file.size_bytes),
     'Content-Disposition': 'inline',
   });
   res.end(file.content);
+}
+
+// GET /api/models/:sha256: a GLB by content hash; what the viewer loads.
+// Colour variants of a product share one file, so they share this URL and the cache.
+api.get('/models/:sha256', wrap(async (req, res) => {
+  const file = await getModelBlob(req.params.sha256);
+  if (!file) return notFound(res, 'Model not found');
+  sendGlb(req, res, file, true);
+}));
+
+// GET /api/variants/:id/model: a variant's current GLB (stable URL; revalidated via ETag).
+api.get('/variants/:id/model', wrap(async (req, res) => {
+  const file = await getModelFile(req.params.id);
+  if (!file) return notFound(res, 'Model not found');
+  sendGlb(req, res, file, Boolean(req.query.v));
 }));
 
 // GET /api/variants/:id/share: the exact URL the QR encodes (reachable from a phone).

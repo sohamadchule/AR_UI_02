@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
+import { admin } from './admin.mjs';
 import { api } from './routes.mjs';
 import { demo } from './demo.mjs';
 
@@ -10,6 +11,7 @@ app.disable('x-powered-by');
 app.set('trust proxy', true);
 
 app.use('/api/demo-requests', demo);
+app.use('/api/admin', admin);
 app.use('/api', api);
 app.use('/api', (_req, res) => res.status(404).json({ error: 'Not found' }));
 
@@ -22,6 +24,11 @@ if (existsSync(dist)) {
 
 // eslint-disable-next-line no-unused-vars
 app.use((err, _req, res, _next) => {
+  // Body-parser failures (e.g. 413 file too large) are the client's to fix: pass them on.
+  const status = err.status ?? err.statusCode;
+  if (status >= 400 && status < 500) {
+    return res.status(status).json({ error: status === 413 ? 'File is too large.' : err.expose ? err.message : 'Bad request' });
+  }
   console.error(err);
   res.status(500).json({ error: 'Internal server error' });
 });

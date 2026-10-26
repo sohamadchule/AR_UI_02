@@ -1,18 +1,41 @@
+import type { Tint } from '@/lib/color';
+import type { Unit } from '@/lib/units';
+
+export interface Dimensions {
+  width: number | null;
+  height: number | null;
+  depth: number | null;
+}
+
 export interface Variant {
   id: string;
   sku: string;
   name: string;
+  /** Fabric / material label, e.g. "Velvet". */
   material: string | null;
+  /** The colour the recolourable part is shown in; null when the model is shown as authored. */
+  colorHex: string | null;
   isDefault: boolean;
-  product: { slug: string; name: string; description: string };
+  product: {
+    id: string;
+    slug: string;
+    name: string;
+    description: string;
+    /** Size entered by the uploader, in mm; null when not given. */
+    dimensionsMm: Dimensions | null;
+    /** Unit the product's size is displayed in. */
+    dimensionUnit: Unit;
+  };
   category: { slug: string; name: string };
   model: {
-    /** Stable, cache-busted URL that streams the GLB from the database. */
+    /** Content-addressed GLB URL; colour variants of one product share it. */
     url: string;
     sizeBytes: number;
     version: number;
     /** Real-world size in metres, read from the GLB. */
     dimensionsM: { width: number; height: number; depth: number } | null;
+    /** Materials to recolour to `colorHex`; null when the model is shown as authored. */
+    tint: Tint | null;
   };
 }
 
@@ -99,13 +122,23 @@ export interface DemoRequestRow {
   created_at: string;
 }
 
+/** An admin call failed; `fieldErrors` maps form fields to messages when the server sent them. */
+export class AdminApiError extends Error {
+  constructor(message: string, public fieldErrors: Record<string, string> = {}) {
+    super(message);
+  }
+}
+
 async function adminFetch<T>(token: string, path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(path, {
     ...init,
-    headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...init.headers },
   });
   if (res.status === 401) throw new Error('Invalid admin token');
-  if (!res.ok) throw new Error(`Request failed (${res.status})`);
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string; errors?: Record<string, string> };
+    throw new AdminApiError(body.error ?? `Request failed (${res.status})`, body.errors);
+  }
   return res.json() as Promise<T>;
 }
 
@@ -117,3 +150,94 @@ export const updateDemoStatus = (token: string, id: string, status: DemoStatus) 
     method: 'PATCH',
     body: JSON.stringify({ status }),
   }).then((r) => r.request);
+
+export interface Category {
+  id: string;
+  slug: string;
+  name: string;
+}
+
+/** A rendered material of an uploaded model, as analysed by the server. */
+export interface ModelMaterial {
+  index: number;
+  name: string;
+  /** Average colour the material shows as authored. */
+  hex: string;
+  texAvg: [number, number, number];
+  /** Average linear colour as authored. */
+  base: [number, number, number];
+  /** KHR_materials_sheen colour, or null. */
+  sheen: [number, number, number] | null;
+  /** Emissive (a light): its glow hides the base colour, so a recolour barely shows. */
+  glows: boolean;
+  /** Fraction of the model's surface drawn with this material (0–1); null if it couldn't be measured. */
+  share: number | null;
+  /** The parts (glTF nodes) drawn with it, biggest first; `share` is their fraction of the surface. */
+  parts: { node: number; name: string; share: number | null }[];
+  /** The biggest surface: on furniture, normally the main body. */
+  largest: boolean;
+  textured: boolean;
+  /** The texture carries its own colour cast, so only nearby colours are reachable. */
+  patterned: boolean;
+  /** Looks like upholstery by name; pre-selected as recolourable. */
+  suggested: boolean;
+}
+
+export interface UploadedModel {
+  sha256: string;
+  filename: string;
+  sizeBytes: number;
+  materials: ModelMaterial[];
+  /** Size read from the model, in mm. */
+  dimensionsMm: { width: number; height: number; depth: number } | null;
+}
+
+export interface NewProductInput {
+  name: string;
+  description?: string;
+  status: 'draft' | 'active';
+  categoryId?: string;
+  newCategory?: string;
+  model: { sha256: string; filename: string; tintMaterials: number[] };
+  /** Values in `unit`; empty fields are omitted. */
+  dimensions: { unit: Unit; width?: number; height?: number; depth?: number };
+  colours: { name: string; hex?: string; fabric?: string; sku?: string; isDefault: boolean }[];
+}
+
+export interface CreatedProduct {
+  product: { id: string; slug: string; status: 'draft' | 'active' };
+  variants: { id: string; sku: string; name: string; isDefault: boolean }[];
+}
+
+export const fetchCategories = (token: string) =>
+  adminFetch<{ categories: Category[] }>(token, '/api/admin/categories').then((r) => r.categories);
+
+export const uploadModel = (token: string, file: File) =>
+  adminFetch<UploadedModel>(token, '/api/admin/models', {
+    method: 'POST',
+    body: file,
+    headers: { 'Content-Type': 'model/gltf-binary', 'X-Filename': encodeURIComponent(file.name) },
+  });
+
+/** Give some parts their own copy of a material; returns the new (stored) model. */
+export const splitModel = (
+  token: string,
+  sha256: string,
+  filename: string,
+  groups: { material: number; nodes: number[]; name: string }[],
+) =>
+  adminFetch<UploadedModel & { created: { index: number; name: string; from: number }[] }>(token, `/api/admin/models/${sha256}/split`, {
+    method: 'POST',
+    body: JSON.stringify({ groups, filename }),
+  });
+
+/** An uploaded model's bytes (admin only, it may be unpublished), for the preview. */
+export async function fetchAdminModel(token: string, sha256: string): Promise<Blob> {
+  const res = await fetch(`/api/admin/models/${sha256}`, { headers: { Authorization: `Bearer ${token}` } });
+  if (res.status === 401) throw new Error('Invalid admin token');
+  if (!res.ok) throw new Error(`Could not load the model (${res.status})`);
+  return res.blob();
+}
+
+export const createProduct = (token: string, input: NewProductInput) =>
+  adminFetch<CreatedProduct>(token, '/api/admin/products', { method: 'POST', body: JSON.stringify(input) });

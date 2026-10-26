@@ -6,7 +6,25 @@ import type React from "react";
  * JSX typings, so we augment React's JSX namespace here.
  */
 
+/** The slice of model-viewer's scene-graph material API this app uses. */
+export interface ModelViewerMaterial {
+  name: string;
+  /** Linear RGB. */
+  readonly emissiveFactor: [number, number, number];
+  setEmissiveFactor: (rgb: [number, number, number] | string) => void;
+  /** Linear RGB; [0,0,0] when the material has no sheen. */
+  readonly sheenColorFactor: [number, number, number];
+  setSheenColorFactor: (rgb: [number, number, number] | string) => void;
+  pbrMetallicRoughness: {
+    /** Linear RGBA. */
+    readonly baseColorFactor: [number, number, number, number];
+    setBaseColorFactor: (rgba: [number, number, number, number] | string) => void;
+  };
+}
+
 export interface ModelViewerElement extends HTMLElement {
+  /** The loaded model; `materials` follow the glTF materials array order. */
+  readonly model?: { readonly materials: ModelViewerMaterial[] };
   /** e.g. "0deg 75deg 105%". Setting it re-frames the camera. */
   cameraOrbit: string;
   cameraTarget: string;
@@ -29,6 +47,7 @@ export interface ModelViewerAttributes
   "camera-controls"?: boolean;
   "auto-rotate"?: boolean;
   "disable-zoom"?: boolean;
+  "camera-orbit"?: string;
   "touch-action"?: string;
   "shadow-intensity"?: string | number;
   exposure?: string | number;

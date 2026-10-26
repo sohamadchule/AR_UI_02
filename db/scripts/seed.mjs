@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DB_DIR, connect } from './lib.mjs';
 import { glbMeta } from './glb.mjs';
+import { analyzeMaterials, buildTint } from './tint.mjs';
 
 const MODELS = join(DB_DIR, 'seed', 'models');
 
@@ -20,8 +21,11 @@ const PRODUCTS = [
     category: 'seating',
     name: 'Upholstered Dining Chair',
     description: 'High-back dining chair with a solid wood frame and upholstered seat.',
+    // `tint: true` recolours the model's fabric materials; `hex` defaults to the detected colour.
     variants: [
-      { sku: 'CHAIR-STD', name: 'Standard', material: 'Plain fabric', isDefault: true, file: 'chair.glb' },
+      { sku: 'CHAIR-STD', name: 'Standard', material: 'Velvet', isDefault: true, file: 'chair.glb', tint: true },
+      { sku: 'CHAIR-OCEAN', name: 'Ocean Blue', material: 'Velvet', isDefault: false, file: 'chair.glb', tint: true, hex: '#2F5D8A' },
+      { sku: 'CHAIR-SAGE', name: 'Sage Green', material: 'Velvet', isDefault: false, file: 'chair.glb', tint: true, hex: '#7D9A78' },
       { sku: 'CHAIR-DMK', name: 'Damask', material: 'Damask fabric', isDefault: false, file: 'chair-damask.glb' },
     ],
   },
@@ -60,18 +64,23 @@ try {
 
     let order = 0;
     for (const v of p.variants) {
-      const { rows: [variant] } = await db.query(
-        `INSERT INTO product_variant (product_id, sku, name, material, is_default, sort_order)
-         VALUES ($1, $2, $3, $4, $5, $6)
-         ON CONFLICT (sku) DO UPDATE SET name = EXCLUDED.name, material = EXCLUDED.material,
-           is_default = EXCLUDED.is_default, sort_order = EXCLUDED.sort_order
-         RETURNING id`,
-        [product.id, v.sku, v.name, v.material, v.isDefault, order++],
-      );
-
       const bytes = readFileSync(join(MODELS, v.file));
       const meta = glbMeta(bytes); // also validates the container
       const sha = createHash('sha256').update(bytes).digest('hex');
+      let tint = null;
+      if (v.tint) {
+        const materials = analyzeMaterials(bytes);
+        tint = buildTint(materials, materials.filter((m) => m.suggested).map((m) => m.index));
+      }
+
+      const { rows: [variant] } = await db.query(
+        `INSERT INTO product_variant (product_id, sku, name, material, color_hex, is_default, sort_order)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         ON CONFLICT (sku) DO UPDATE SET name = EXCLUDED.name, material = EXCLUDED.material, color_hex = EXCLUDED.color_hex,
+           is_default = EXCLUDED.is_default, sort_order = EXCLUDED.sort_order
+         RETURNING id`,
+        [product.id, v.sku, v.name, v.material, tint ? (v.hex ?? tint.baseHex) : null, v.isDefault, order++],
+      );
 
       await db.query(
         `INSERT INTO model_blob (sha256, content, size_bytes) VALUES ($1, $2, $3)
@@ -84,7 +93,8 @@ try {
         [variant.id],
       );
       if (current?.blob_sha256 === sha) {
-        console.log(`unchanged  ${v.sku.padEnd(10)} ${v.file}`);
+        await db.query('UPDATE model_asset SET tint = $2 WHERE variant_id = $1 AND is_current', [variant.id, tint && JSON.stringify(tint)]);
+        console.log(`unchanged  ${v.sku.padEnd(11)} ${v.file}`);
         continue;
       }
       const { rows: [{ next }] } = await db.query(
@@ -93,11 +103,11 @@ try {
       );
       await db.query('UPDATE model_asset SET is_current = false WHERE variant_id = $1 AND is_current', [variant.id]);
       await db.query(
-        `INSERT INTO model_asset (variant_id, blob_sha256, version, is_current, original_filename, meta)
-         VALUES ($1, $2, $3, true, $4, $5)`,
-        [variant.id, sha, next, v.file, JSON.stringify(meta)],
+        `INSERT INTO model_asset (variant_id, blob_sha256, version, is_current, original_filename, meta, tint)
+         VALUES ($1, $2, $3, true, $4, $5, $6)`,
+        [variant.id, sha, next, v.file, JSON.stringify(meta), tint && JSON.stringify(tint)],
       );
-      console.log(`stored     ${v.sku.padEnd(10)} ${v.file}  v${next}  ${(bytes.length / 1024).toFixed(0)} KB`);
+      console.log(`stored     ${v.sku.padEnd(11)} ${v.file}  v${next}  ${(bytes.length / 1024).toFixed(0)} KB`);
     }
   }
 

@@ -2,6 +2,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type React from "react";
 
+import { sheenFactor, tintFactor, type Recolor, type TintMaterial } from "@/lib/color";
+
 type Phase = "loading" | "scanning" | "placed" | "error";
 
 export interface ArSceneProps {
@@ -11,6 +13,8 @@ export interface ArSceneProps {
   session: XRSession;
   /** Called once the session has ended, for any reason. */
   onEnd: () => void;
+  /** Colour to show the model's recolourable materials in, if any. */
+  recolor?: Recolor | null;
 }
 
 /** Pinch limits, relative to the model's authored (real-world) size. */
@@ -35,7 +39,10 @@ const TAP_SLOP_PX = 10;
  * GLB units are meters, so the model is placed at authored scale; pinch adjusts
  * only within a clamped range around it.
  */
-export default function ArScene({ src, session, onEnd }: ArSceneProps) {
+export default function ArScene({ src, session, onEnd, recolor }: ArSceneProps) {
+  // Read when the model loads; a colour change mid-session must not restart AR.
+  const recolorRef = useRef(recolor);
+  recolorRef.current = recolor;
   const [phase, setPhase] = useState<Phase>("loading");
   const [progress, setProgress] = useState(0);
   const [message, setMessage] = useState<string | null>(null);
@@ -133,11 +140,23 @@ export default function ArScene({ src, session, onEnd }: ArSceneProps) {
         (gltf) => {
           if (disposed) return;
           const model = gltf.scene;
+          // glTF material index → the tint data for it, when this variant recolours it.
+          const colour = recolorRef.current;
+          const tinted = new Map<number, TintMaterial>((colour?.tint.materials ?? []).map((m) => [m.index, m]));
           model.traverse((child) => {
             const mesh = child as import("three").Mesh;
             if (mesh.isMesh) {
               mesh.castShadow = true;
               mesh.receiveShadow = true;
+              for (const material of [mesh.material].flat()) {
+                const index = gltf.parser.associations.get(material)?.materials;
+                const m = index === undefined ? undefined : tinted.get(index);
+                if (!m || !colour) continue;
+                const physical = material as import("three").MeshPhysicalMaterial;
+                physical.color.setRGB(...tintFactor(colour.hex, m.texAvg));
+                const sheen = sheenFactor(colour.hex, m);
+                if (sheen && physical.sheenColor) physical.sheenColor.setRGB(...sheen);
+              }
             }
           });
           // Rest the model's base on the plane however it was authored.

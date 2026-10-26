@@ -14,13 +14,13 @@ export function readGlb(buf) {
 }
 
 // --- tiny column-major 4x4 matrix helpers ---------------------------------
-const identity = () => [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
-const mul = (a, b) => {
+export const identity = () => [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+export const mul = (a, b) => {
   const o = new Array(16).fill(0);
   for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) for (let k = 0; k < 4; k++) o[c * 4 + r] += a[k * 4 + r] * b[c * 4 + k];
   return o;
 };
-function nodeMatrix(n) {
+export function nodeMatrix(n) {
   if (n.matrix) return n.matrix;
   const [x, y, z, w] = n.rotation ?? [0, 0, 0, 1];
   const [sx, sy, sz] = n.scale ?? [1, 1, 1];

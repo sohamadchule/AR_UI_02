@@ -1,6 +1,7 @@
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
 
 import ModelViewer from "./ModelViewer";
+import type { Recolor } from "@/lib/color";
 import { AR_SESSION_MODE, arSessionInit, isImmersiveArSupported } from "@/lib/webxr";
 
 // three.js and the AR scene are only ever needed once someone taps into AR, so
@@ -12,6 +13,13 @@ export interface ProductArExperienceProps {
   src: string;
   /** Accessible description of the model. */
   alt: string;
+  /** Colour for the model's recolourable materials, in 3D and in AR. */
+  recolor?: Recolor | null;
+  /** Passed through to ModelViewer. */
+  autoRotate?: boolean;
+  disableZoom?: boolean;
+  showArUnavailable?: boolean;
+  cameraOrbit?: string;
 }
 
 /**
@@ -29,6 +37,11 @@ export interface ProductArExperienceProps {
 export default function ProductArExperience({
   src,
   alt,
+  recolor,
+  autoRotate,
+  disableZoom,
+  showArUnavailable,
+  cameraOrbit,
 }: ProductArExperienceProps) {
   const [webXrSupported, setWebXrSupported] = useState<boolean | null>(null);
   const [session, setSession] = useState<XRSession | null>(null);
@@ -69,6 +82,11 @@ export default function ProductArExperience({
           alt={alt}
           ar
           showArButton={webXrSupported === false}
+          recolor={recolor}
+          autoRotate={autoRotate}
+          disableZoom={disableZoom}
+          showArUnavailable={showArUnavailable}
+          cameraOrbit={cameraOrbit}
         />
       </div>
 
@@ -93,7 +111,7 @@ export default function ProductArExperience({
       <div ref={overlayRef}>
         {session && (
           <Suspense fallback={null}>
-            <ArScene src={src} session={session} onEnd={handleEnd} />
+            <ArScene src={src} session={session} onEnd={handleEnd} recolor={recolor} />
           </Suspense>
         )}
       </div>

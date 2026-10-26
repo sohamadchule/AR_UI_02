@@ -1,9 +1,13 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import type { ModelViewerElement } from "@/types/model-viewer";
+import { sheenFactor, tintFactor, type Recolor, type Rgb } from "@/lib/color";
+import type { ModelViewerElement, ModelViewerMaterial } from "@/types/model-viewer";
 
 type Status = "loading" | "loaded" | "error";
+
+/** How long a colour change fades for. */
+const RECOLOR_MS = 350;
 type ArStatus =
   | "not-presenting"
   | "session-started"
@@ -29,6 +33,75 @@ export interface ModelViewerProps {
   showArButton?: boolean;
   /** Notified when AR availability is determined (after the model loads). */
   onArAvailabilityChange?: (supported: boolean) => void;
+  /** Show the model's recolourable materials in this colour (applied without reloading). */
+  recolor?: Recolor | null;
+  /** glTF material index to make glow, so a person can see which part it is; null for none. */
+  highlight?: number | null;
+  /** Stop the scroll wheel zooming, so it scrolls the page instead (pinch still works on touch). */
+  disableZoom?: boolean;
+  /** With `showArButton`, also explain when AR is unavailable (off for desktop heroes that offer a QR instead). */
+  showArUnavailable?: boolean;
+  /** Starting (and reset) camera position, e.g. "180deg 75deg 105%" for a model authored facing away. */
+  cameraOrbit?: string;
+}
+
+/**
+ * Set each tint material's base colour for `recolor`, fading from the current
+ * colour when `fadeMs` > 0. Returns a function that cancels the fade.
+ */
+function applyRecolor(el: ModelViewerElement, recolor: Recolor, fadeMs: number): () => void {
+  const materials = el.model?.materials ?? [];
+  let steps;
+  try {
+    steps = recolorSteps(materials, recolor);
+  } catch (err) {
+    console.error("Recolour failed", err);
+    return () => {};
+  }
+  return runRecolor(steps, fadeMs);
+}
+
+function recolorSteps(materials: ModelViewerMaterial[], recolor: Recolor) {
+  return recolor.tint.materials.flatMap((m) => {
+    const material = materials[m.index];
+    if (!material) return [];
+    const [r, g, b, a] = material.pbrMetallicRoughness.baseColorFactor;
+    // Only materials authored with KHR_materials_sheen have a sheen colour: reading it on
+    // any other material throws inside model-viewer (three.js has no sheenColor there).
+    const sheenTo = m.sheen ? sheenFactor(recolor.hex, m) : null;
+    return [{
+      material,
+      from: [r, g, b] as Rgb,
+      to: tintFactor(recolor.hex, m.texAvg),
+      alpha: a,
+      sheenFrom: sheenTo ? ([...material.sheenColorFactor] as Rgb) : null,
+      sheenTo,
+    }];
+  });
+}
+
+function runRecolor(steps: ReturnType<typeof recolorSteps>, fadeMs: number): () => void {
+  const mix = (from: Rgb, to: Rgb, t: number) => from.map((f, i) => f + (to[i] - f) * t) as Rgb;
+  let frame = 0;
+  const start = performance.now();
+  const tick = (now: number) => {
+    const t = fadeMs > 0 ? Math.min(1, (now - start) / fadeMs) : 1;
+    const eased = 1 - (1 - t) ** 3;
+    try {
+      for (const s of steps) {
+        s.material.pbrMetallicRoughness.setBaseColorFactor([...mix(s.from, s.to, eased), s.alpha]);
+        if (s.sheenFrom && s.sheenTo) s.material.setSheenColorFactor(mix(s.sheenFrom, s.sheenTo, eased));
+      }
+    } catch (err) {
+      // A model the colour API can't handle must never take the page down with it.
+      console.error("Recolour failed", err);
+      return;
+    }
+    if (t < 1) frame = requestAnimationFrame(tick);
+  };
+  if (fadeMs > 0) frame = requestAnimationFrame(tick);
+  else tick(start);
+  return () => cancelAnimationFrame(frame);
 }
 
 /**
@@ -52,6 +125,11 @@ export default function ModelViewer({
   autoRotate = false,
   showArButton = true,
   onArAvailabilityChange,
+  recolor,
+  highlight = null,
+  disableZoom = false,
+  showArUnavailable = true,
+  cameraOrbit = "0deg 75deg 105%",
 }: ModelViewerProps) {
   const ref = useRef<ModelViewerElement>(null);
   const [defined, setDefined] = useState(false);
@@ -60,6 +138,9 @@ export default function ModelViewer({
   const [arSupported, setArSupported] = useState<boolean | null>(null);
   const [arStatus, setArStatus] = useState<ArStatus>("not-presenting");
   const [trackedSrc, setTrackedSrc] = useState(src);
+  // Latest colour, read by the load handler so a fresh model never flashes its authored colour.
+  const recolorRef = useRef(recolor);
+  recolorRef.current = recolor;
 
   // Reset visual state when the model source changes (render-time adjustment,
   // the React-recommended alternative to a resetting effect).
@@ -91,6 +172,7 @@ export default function ModelViewer({
     if (!el || !defined) return;
 
     const onLoad = () => {
+      if (recolorRef.current) applyRecolor(el, recolorRef.current, 0);
       setStatus("loaded");
       if (ar) {
         const supported = Boolean(el.canActivateAR);
@@ -122,13 +204,53 @@ export default function ModelViewer({
     };
   }, [defined, src, ar, onArAvailabilityChange]);
 
+  // Colour switches on an already-loaded model: fade, no reload.
+  const recolorHex = recolor?.hex;
+  const recolorTint = recolor?.tint;
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || status !== "loaded" || !recolorHex || !recolorTint) return;
+    return applyRecolor(el, { hex: recolorHex, tint: recolorTint }, RECOLOR_MS);
+  }, [status, recolorHex, recolorTint]);
+
+  // Pulse the highlighted material's glow, then put its own emissive colour back.
+  useEffect(() => {
+    const material = highlight === null || status !== "loaded" ? undefined : ref.current?.model?.materials[highlight];
+    if (!material) return;
+    let original: [number, number, number];
+    try {
+      original = [...material.emissiveFactor] as [number, number, number];
+    } catch {
+      return;
+    }
+    let frame = 0;
+    const tick = (now: number) => {
+      const glow = 0.55 + 0.4 * Math.sin(now / 180);
+      try {
+        material.setEmissiveFactor([glow, glow * 0.55, 0]);
+      } catch {
+        return;
+      }
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => {
+      cancelAnimationFrame(frame);
+      try {
+        material.setEmissiveFactor(original);
+      } catch {
+        // model already gone
+      }
+    };
+  }, [highlight, status]);
+
   const handleReset = useCallback(() => {
     const el = ref.current;
     if (!el) return;
-    el.cameraOrbit = "0deg 75deg 105%";
+    el.cameraOrbit = cameraOrbit;
     el.cameraTarget = "auto auto auto";
     el.fieldOfView = "auto";
-  }, []);
+  }, [cameraOrbit]);
 
   const handleRetry = useCallback(() => {
     const el = ref.current;
@@ -161,12 +283,16 @@ export default function ModelViewer({
           alt={alt ?? "Interactive 3D model"}
           poster={poster}
           camera-controls
+          // Spread, not `={false}`: React 18 writes "false" onto custom elements, which still enables it.
+          {...(disableZoom ? { "disable-zoom": true } : {})}
           touch-action="pan-y"
           shadow-intensity="1"
           exposure="1"
           reveal="auto"
           auto-rotate={autoRotate}
-          interaction-prompt="auto"
+          camera-orbit={cameraOrbit}
+          // The prompt's wiggle takes over the camera and stops auto-rotate; the spin already says "3D".
+          interaction-prompt={autoRotate ? "none" : "auto"}
           {...(ar
             ? {
                 ar: true,
@@ -242,7 +368,7 @@ export default function ModelViewer({
             >
               <span aria-hidden>◈</span> View in AR
             </button>
-          ) : arSupported === false ? (
+          ) : arSupported === false && showArUnavailable ? (
             <p className="max-w-xs rounded-full bg-black/60 px-4 py-2 text-center text-xs text-white backdrop-blur">
               AR isn&apos;t available on this device or browser. You can still
               explore the 3D model above.

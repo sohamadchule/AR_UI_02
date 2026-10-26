@@ -21,9 +21,13 @@ try {
 
   for (const file of files) {
     const sql = readFileSync(join(dir, file), 'utf8');
-    const checksum = createHash('sha256').update(sql).digest('hex');
+    const hash = (text) => createHash('sha256').update(text).digest('hex');
+    const checksum = hash(sql);
     if (applied.has(file)) {
-      if (applied.get(file) !== checksum) throw new Error(`Migration ${file} was modified after being applied.`);
+      // Git's autocrlf may check a file out with other line endings than it was applied with: not an edit.
+      const lf = sql.replace(/\r\n/g, '\n');
+      const same = [checksum, hash(lf), hash(lf.replace(/\n/g, '\r\n'))].includes(applied.get(file));
+      if (!same) throw new Error(`Migration ${file} was modified after being applied.`);
       console.log(`skip   ${file}`);
       continue;
     }

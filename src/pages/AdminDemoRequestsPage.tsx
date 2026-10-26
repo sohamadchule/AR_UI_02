@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { LogOut, RefreshCw } from 'lucide-react';
+import { LogOut, RefreshCw, Upload } from 'lucide-react';
 import { fetchDemoRequests, updateDemoStatus, type DemoRequestRow, type DemoStatus } from '@/lib/api';
-import { Button } from '@/components/ui/Button';
+import { Button, buttonClasses } from '@/components/ui/Button';
 import { cn } from '@/lib/cn';
 
 const TOKEN_KEY = 'akruti.adminToken';
@@ -134,6 +134,9 @@ export function AdminDemoRequestsPage() {
             </p>
           </div>
           <div className="flex gap-2">
+            <Link to="/admin/models/new" className={buttonClasses('primary', 'md')}>
+              <Upload size={14} aria-hidden /> Upload model
+            </Link>
             <Button variant="outline" size="md" onClick={() => void load()} disabled={loading} icon={<RefreshCw size={14} className={cn(loading && 'animate-spin')} />}>
               Refresh
             </Button>
