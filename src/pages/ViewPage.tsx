@@ -1,9 +1,11 @@
+import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { Cuboid } from 'lucide-react';
-import { fetchVariant } from '@/lib/api';
+import { fetchVariant, fetchVariants } from '@/lib/api';
 import { useAsync } from '@/hooks/useAsync';
 import { SITE } from '@/data/site';
 import { ModelStage } from '@/features/experience/ModelStage';
+import { ColourSwatches } from '@/features/experience/ColourSwatches';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
 
 /**
@@ -12,7 +14,16 @@ import { ThemeToggle } from '@/components/ui/ThemeToggle';
  */
 export function ViewPage() {
   const { variantId = '' } = useParams();
-  const result = useAsync(() => fetchVariant(variantId), variantId);
+  // The scanned variant plus its sibling colours (best effort: the page works without them).
+  const result = useAsync(
+    () =>
+      Promise.all([fetchVariant(variantId), fetchVariants().catch(() => [])]).then(([variant, all]) => {
+        const siblings = all.filter((v) => v.product.id === variant.product.id);
+        return { variant, siblings: siblings.length ? siblings : [variant] };
+      }),
+    variantId,
+  );
+  const [pickedId, setPickedId] = useState<string | null>(null);
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-md flex-col px-4 pb-10 pt-5">
@@ -40,20 +51,26 @@ export function ViewPage() {
         </div>
       )}
 
-      {result.status === 'ready' && (
+      {result.status === 'ready' && (() => {
+        const shown = result.data.siblings.find((v) => v.id === pickedId) ?? result.data.variant;
+        return (
         <>
-          <h1 className="text-2xl font-light tracking-tight text-fg">{result.data.product.name}</h1>
+          <h1 className="text-2xl font-light tracking-tight text-fg">{shown.product.name}</h1>
           <p className="mb-4 text-sm text-fg-muted">
-            {result.data.name}
-            {result.data.material ? ` · ${result.data.material}` : ''}
+            {shown.name}
+            {shown.material ? ` · ${shown.material}` : ''}
           </p>
-          <ModelStage variant={result.data} className="min-h-[58vh] flex-1" />
+          <ModelStage variant={shown} className="min-h-[58vh] flex-1" />
           <p className="pt-3 text-center text-xs uppercase tracking-widest text-fg-subtle">Rotate · Zoom · Explore</p>
-          {result.data.product.description && (
-            <p className="pt-4 text-sm leading-relaxed text-fg-muted">{result.data.product.description}</p>
+          <div className="pt-4">
+            <ColourSwatches variants={result.data.siblings} activeId={shown.id} onSelect={setPickedId} />
+          </div>
+          {shown.product.description && (
+            <p className="pt-4 text-sm leading-relaxed text-fg-muted">{shown.product.description}</p>
           )}
         </>
-      )}
+        );
+      })()}
     </div>
   );
 }
