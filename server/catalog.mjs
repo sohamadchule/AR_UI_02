@@ -8,6 +8,7 @@ const SELECT_VARIANTS = `
   SELECT v.id, v.sku, v.name, v.material, v.color_hex, v.is_default,
          p.id AS product_id, p.slug AS product_slug, p.name AS product_name, p.description,
          p.width_mm, p.height_mm, p.depth_mm, p.dimension_unit,
+         p.price_inr, p.mrp_inr, p.blurb,
          c.slug AS category_slug, c.name AS category_name,
          b.sha256, b.size_bytes, a.meta, a.version, a.tint
     FROM product_variant v
@@ -36,6 +37,10 @@ function toPublic(row) {
       slug: row.product_slug,
       name: row.product_name,
       description: row.description,
+      blurb: row.blurb,
+      // Whole rupees; null when the catalogue has no price for this product yet.
+      priceInr: row.price_inr === null ? null : Number(row.price_inr),
+      mrpInr: row.mrp_inr === null ? null : Number(row.mrp_inr),
       dimensionsMm: dims,
       dimensionUnit: row.dimension_unit,
     },

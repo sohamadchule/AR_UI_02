@@ -21,6 +21,12 @@ export interface Variant {
     slug: string;
     name: string;
     description: string;
+    /** One line for a catalogue tile; '' when not set. */
+    blurb: string;
+    /** Selling price in whole rupees; null when the catalogue has no price yet. */
+    priceInr: number | null;
+    /** Struck-through list price in whole rupees, or null. */
+    mrpInr: number | null;
     /** Size entered by the uploader, in mm; null when not given. */
     dimensionsMm: Dimensions | null;
     /** Unit the product's size is displayed in. */
