@@ -6,3 +6,13 @@ dist
 .env.example 
 # database data (seed models, etc.) - not pushed
 db/seed/
+
+# project notes (local only)
+/README.md
+
+# quick guide with admin password (local only)
+/PROJECT_GUIDE.md
+
+# build cache and raw source models (local only)
+tsconfig.tsbuildinfo
+/GLB files/
