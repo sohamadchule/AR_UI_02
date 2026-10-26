@@ -12,6 +12,7 @@
     "db:migrate": "node db/scripts/migrate.mjs",
     "db:verify": "node db/scripts/verify.mjs",
     "db:seed": "node db/scripts/seed.mjs",
+    "db:seed:store": "node db/scripts/seed-store.mjs",
     "db:setup": "npm run db:create && npm run db:migrate && npm run db:seed",
     "server": "node server/index.mjs",
     "dev:all": "concurrently -k -n api,web -c blue,green \"npm:server\" \"npm:dev\"",

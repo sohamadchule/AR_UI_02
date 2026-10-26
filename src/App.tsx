@@ -9,6 +9,11 @@ import { RequestDemoPage } from '@/pages/RequestDemoPage';
 import { VerifyDemoEmailPage } from '@/pages/VerifyDemoEmailPage';
 import { AdminDemoRequestsPage } from '@/pages/AdminDemoRequestsPage';
 import { AdminModelUploadPage } from '@/pages/AdminModelUploadPage';
+import { StoreLayout } from '@/components/layout/StoreLayout';
+import { StoreHomePage } from '@/pages/store/StoreHomePage';
+import { StoreProductPage } from '@/pages/store/StoreProductPage';
+import { StoreExperiencePage } from '@/pages/store/StoreExperiencePage';
+import { StoreAboutPage } from '@/pages/store/StoreAboutPage';
 
 export default function App() {
   return (
@@ -17,6 +22,13 @@ export default function App() {
       <Route path="view/:variantId" element={<ViewPage />} />
       <Route path="admin" element={<AdminDemoRequestsPage />} />
       <Route path="admin/models/new" element={<AdminModelUploadPage />} />
+      {/* Client storefronts: their own chrome and brand kit, never the Akruti layout. */}
+      <Route path="store/:brandSlug" element={<StoreLayout />}>
+        <Route index element={<StoreHomePage />} />
+        <Route path="p/:productSlug" element={<StoreProductPage />} />
+        <Route path="experience" element={<StoreExperiencePage />} />
+        <Route path="about" element={<StoreAboutPage />} />
+      </Route>
       <Route element={<Layout />}>
         <Route index element={<HomePage />} />
         <Route path="about" element={<AboutPage />} />

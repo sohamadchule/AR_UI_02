@@ -96,3 +96,93 @@
     animation: color-fade 600ms ease-out both !important;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Client storefronts.
+
+   Each block redefines the same semantic tokens the rest of the app uses, so
+   every `bg-surface` / `text-fg-muted` / `border-line` inside a store re-skins
+   with no conditional classes. `[data-brand]` is set once by StoreLayout.
+   Dark values live under `.dark [data-brand=…]`, matching the app's class-based
+   dark mode. Onboarding a client = one block here plus one entry in brands.ts.
+   --------------------------------------------------------------------------- */
+@layer base {
+  [data-brand] {
+    --accent: 162 107 34;
+    --accent-ink: 255 255 255;
+    --store-radius: 14px;
+    --font-display: 'Instrument Serif', Georgia, 'Times New Roman', serif;
+    --font-body: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif;
+    --mark-weight: 400;
+    --mark-tracking: -0.01em;
+    --mark-transform: none;
+  }
+
+  /* Nivaas Living — warm stone, brass accent, serif wordmark. */
+  [data-brand='nivaas'] {
+    --surface: 255 253 250; --surface-raised: 250 247 242; --surface-sunken: 240 235 227;
+    --fg: 26 21 15; --fg-soft: 61 52 41; --fg-muted: 106 95 81; --fg-subtle: 143 131 115;
+    --line: 0 0 0;
+    --accent: 162 107 34; --accent-ink: 255 255 255;
+  }
+  .dark [data-brand='nivaas'] {
+    --surface: 18 15 12; --surface-raised: 24 20 16; --surface-sunken: 30 25 20;
+    --fg: 245 241 234; --fg-soft: 214 206 194; --fg-muted: 168 158 144; --fg-subtle: 124 114 100;
+    --line: 255 255 255;
+    --accent: 220 165 87; --accent-ink: 26 18 6;
+  }
+
+  /* Saaj & Co. — near-monochrome, oxblood accent, Bodoni wordmark, square corners. */
+  [data-brand='saaj'] {
+    --surface: 255 255 255; --surface-raised: 249 248 248; --surface-sunken: 238 236 235;
+    --fg: 20 18 18; --fg-soft: 54 50 50; --fg-muted: 104 98 98; --fg-subtle: 142 136 136;
+    --line: 0 0 0;
+    --accent: 142 43 53; --accent-ink: 255 255 255;
+    --store-radius: 2px;
+    --font-display: 'Bodoni Moda', Didot, Georgia, serif;
+    --font-body: 'Karla', ui-sans-serif, system-ui, sans-serif;
+    --mark-weight: 700; --mark-tracking: 0.26em; --mark-transform: uppercase;
+    /* The shop front: Jaipur pink sandstone with lime-plaster trim. */
+    --haveli-wall: 222 150 128; --haveli-trim: 247 233 214;
+  }
+  .dark [data-brand='saaj'] {
+    --surface: 14 13 13; --surface-raised: 20 18 18; --surface-sunken: 28 25 25;
+    --fg: 244 242 241; --fg-soft: 212 208 206; --fg-muted: 164 157 155; --fg-subtle: 120 114 112;
+    --line: 255 255 255;
+    --accent: 232 115 127; --accent-ink: 26 10 12;
+    /* The same front at dusk. */
+    --haveli-wall: 112 58 52; --haveli-trim: 205 176 150;
+  }
+
+  /* Kadam Works — the immersive showroom: warm ivory, charcoal, olive and walnut, serif headings. */
+  [data-brand='kadam'] {
+    --surface: 245 241 233; --surface-raised: 239 234 224; --surface-sunken: 231 223 210;
+    --fg: 36 35 32; --fg-soft: 62 59 53; --fg-muted: 104 99 90; --fg-subtle: 139 132 121;
+    --line: 36 35 32;
+    --accent: 140 106 79; --accent-ink: 255 255 255;
+    --olive: 119 123 96;
+    /* Fixed, theme-independent tones for photography overlays and the drawn shop front. */
+    --night: 24 23 21; --ivory: 245 241 233;
+    --store-radius: 2px;
+    --font-display: 'Instrument Serif', Georgia, 'Times New Roman', serif;
+    --font-body: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif;
+    --mark-weight: 400; --mark-tracking: 0.01em; --mark-transform: none;
+  }
+  .dark [data-brand='kadam'] {
+    --surface: 22 21 19; --surface-raised: 29 27 24; --surface-sunken: 37 35 31;
+    --fg: 245 241 233; --fg-soft: 222 215 203; --fg-muted: 176 168 155; --fg-subtle: 128 121 110;
+    --line: 245 241 233;
+    --accent: 196 154 116; --accent-ink: 28 22 16;
+    --olive: 166 170 138;
+  }
+}
+
+@layer components {
+  /* The wordmark reads differently per client, so its weight / tracking / case are tokens. */
+  .store-mark {
+    font-family: var(--font-display);
+    font-weight: var(--mark-weight);
+    letter-spacing: var(--mark-tracking);
+    text-transform: var(--mark-transform);
+  }
+}
