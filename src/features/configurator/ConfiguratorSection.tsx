@@ -1,9 +1,41 @@
 import { useState } from 'react';
-import { Layers } from 'lucide-react';
+import { Layers, ScanLine } from 'lucide-react';
 import { IMAGES, SWATCHES } from '@/data/content';
+import { fetchVariants, qrUrl } from '@/lib/api';
+import { useAsync } from '@/hooks/useAsync';
 import { Reveal } from '@/components/ui/Reveal';
 import { ChairViewer } from './ChairViewer';
 import { SwatchPicker } from './SwatchPicker';
+
+/** The catalogue piece the QR opens in AR: the closest match to the chair in the photo. */
+const AR_CHAIR = 'upholstered-dining-chair';
+
+/** Desktop only: hands the chair to the visitor's phone. Hidden until the catalogue has it. */
+function ChairQr() {
+  const catalog = useAsync(fetchVariants, 'variants');
+  if (catalog.status !== 'ready') return null;
+  const chairs = catalog.data.filter((v) => v.product.slug === AR_CHAIR);
+  const variant = chairs.find((v) => v.isDefault) ?? chairs[0];
+  if (!variant) return null;
+
+  return (
+    <div className="mt-10 hidden w-fit items-center gap-3 rounded-2xl border border-line/10 bg-surface p-2 pr-4 lg:flex">
+      <img
+        src={qrUrl(variant.id)}
+        alt={`QR code: open the ${variant.product.name} on your phone`}
+        width={72}
+        height={72}
+        className="h-[72px] w-[72px] rounded-lg bg-white p-1"
+      />
+      <div>
+        <p className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.16em] text-fg-muted">
+          <ScanLine size={12} aria-hidden /> Scan with your phone
+        </p>
+        <p className="mt-1 max-w-[140px] text-sm leading-snug text-fg">Place it in your room, at real size.</p>
+      </div>
+    </div>
+  );
+}
 
 export function ConfiguratorSection() {
   const [activeId, setActiveId] = useState(SWATCHES[0].id);
@@ -26,6 +58,7 @@ export function ConfiguratorSection() {
             generating photorealistic visualizations on the fly.
           </p>
           <SwatchPicker swatches={SWATCHES} activeId={activeId} onChange={setActiveId} />
+          <ChairQr />
         </Reveal>
 
         <div className="glass-panel relative flex h-[560px] w-full items-center justify-center overflow-hidden rounded-3xl md:h-[660px] lg:w-2/3">

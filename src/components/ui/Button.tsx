@@ -2,7 +2,7 @@ import type { ButtonHTMLAttributes, ReactNode } from 'react';
 import { cn } from '@/lib/cn';
 
 type Variant = 'primary' | 'outline';
-type Size = 'md' | 'lg';
+type Size = 'sm' | 'md' | 'lg';
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant;
@@ -17,6 +17,8 @@ const VARIANTS: Record<Variant, string> = {
 };
 
 const SIZES: Record<Size, string> = {
+  /** Compact, sentence case — for chrome like the header, where uppercase tracking shouts. */
+  sm: 'h-9 px-5 text-sm font-semibold',
   md: 'px-6 py-2.5 text-xs uppercase tracking-[0.15em]',
   lg: 'px-8 py-4 text-sm tracking-wide',
 };

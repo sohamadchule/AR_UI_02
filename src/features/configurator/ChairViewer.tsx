@@ -9,8 +9,12 @@ interface ChairViewerProps {
 const MASK: CSSProperties = {
   WebkitMaskImage: `url(${IMAGES.configuratorChairMask})`,
   maskImage: `url(${IMAGES.configuratorChairMask})`,
-  WebkitMaskSize: '100% 100%',
-  maskSize: '100% 100%',
+  // Must crop exactly like the photo's `object-cover`, or the tint drifts off the
+  // upholstery whenever the box isn't 4:5 (e.g. on narrow phones).
+  WebkitMaskSize: 'cover',
+  maskSize: 'cover',
+  WebkitMaskPosition: 'center',
+  maskPosition: 'center',
   WebkitMaskRepeat: 'no-repeat',
   maskRepeat: 'no-repeat',
 };

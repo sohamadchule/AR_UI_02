@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Akruti mark: an isometric cube. One gradient runs across all three faces;
+       white/black overlays light the top face and shade the right one. -->
+  <defs>
+    <linearGradient id="g" x1="4" y1="3" x2="28" y2="29" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#34d399"/>
+      <stop offset="0.5" stop-color="#22a6c9"/>
+      <stop offset="1" stop-color="#6366f1"/>
+    </linearGradient>
+  </defs>
+  <g fill="url(#g)">
+    <path d="M16 2.5 28.1 9.5 16 16.5 3.9 9.5Z"/>
+    <path d="M3.9 10.6 15.4 17.2V30.4L3.9 23.8Z"/>
+    <path d="M28.1 10.6 16.6 17.2V30.4L28.1 23.8Z"/>
+  </g>
+  <path d="M16 2.5 28.1 9.5 16 16.5 3.9 9.5Z" fill="#fff" fill-opacity="0.4"/>
+  <path d="M28.1 10.6 16.6 17.2V30.4L28.1 23.8Z" fill="#000" fill-opacity="0.28"/>
+</svg>

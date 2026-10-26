@@ -23,16 +23,36 @@ export interface ValueProp {
 
 export const VALUE_PROPS: readonly ValueProp[] = [
   {
-    title: 'Reduce Returns',
-    description: 'When customers know it fits mathematically and aesthetically, fit-related returns drop drastically.',
+    title: 'Fewer returns',
+    description: 'Buyers check the size against their own wall and doorway first, so fewer pieces come back for not fitting.',
   },
   {
-    title: 'Increase Conversion',
-    description: "Interactive 3D keeps users on-page longer and builds the confidence required to click 'Buy'.",
+    title: 'More confident buyers',
+    description: "A piece someone has turned around and placed in their room is far easier to say yes to than a flat photo.",
   },
   {
-    title: 'Scale Effortlessly',
-    description: 'One 3D model powers web views, AR experiences, and unlimited configuration renders.',
+    title: 'One model, everywhere',
+    description: 'The same 3D file powers your product page, AR, QR codes on the shop floor and every colour variant.',
+  },
+];
+
+export interface Step {
+  title: string;
+  description: string;
+}
+
+export const STEPS: readonly Step[] = [
+  {
+    title: 'Upload your model',
+    description: 'Send a GLB of any piece. We read its real dimensions and work out which parts can take a new colour.',
+  },
+  {
+    title: 'Get a link and a QR code',
+    description: 'Every colour gets its own page to link from your site, and a QR to print on a price tag or catalogue.',
+  },
+  {
+    title: 'Buyers place it at home',
+    description: 'They open it on their phone and see the piece in their room at true size. No app, on Android or iPhone.',
   },
 ];
 

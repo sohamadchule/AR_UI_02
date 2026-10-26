@@ -3,12 +3,10 @@ import { CheckCircle2, MailCheck } from 'lucide-react';
 import { ApiValidationError, submitDemoRequest, type DemoRequestInput, type DemoSubmitResult } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 
-const INTERESTS = ['3D product models', 'AR experience', 'QR / physical-to-digital', 'Configurator', 'Something else'];
-
-type Fields = Required<Pick<DemoRequestInput, 'name' | 'email' | 'company' | 'phone' | 'role' | 'interest' | 'message'>>;
+type Fields = Required<Pick<DemoRequestInput, 'name' | 'email' | 'company' | 'phone' | 'role' | 'message'>>;
 type FieldErrors = Partial<Record<keyof Fields, string>>;
 
-const EMPTY: Fields = { name: '', email: '', company: '', phone: '', role: '', interest: '', message: '' };
+const EMPTY: Fields = { name: '', email: '', company: '', phone: '', role: '', message: '' };
 const PHONE = /^\+?[\d\s().-]{7,20}$/;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
@@ -108,16 +106,6 @@ export function DemoRequestForm() {
         {field('role', 'Role', { autoComplete: 'organization-title', maxLength: 120 })}
       </div>
       {field('phone', 'Contact number', { type: 'tel', autoComplete: 'tel', maxLength: 20, placeholder: '+91 98765 43210' })}
-
-      <label className="block text-left">
-        <span className={labelCls}>Interested in</span>
-        <select className={inputCls} value={fields.interest} onChange={set('interest')}>
-          <option value="">Select…</option>
-          {INTERESTS.map((i) => (
-            <option key={i}>{i}</option>
-          ))}
-        </select>
-      </label>
 
       <label className="block text-left">
         <span className={labelCls}>Message</span>

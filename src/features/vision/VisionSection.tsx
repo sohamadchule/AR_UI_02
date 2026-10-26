@@ -2,16 +2,16 @@ import { Reveal } from '@/components/ui/Reveal';
 
 export function VisionSection() {
   return (
-    <section id="vision" className="relative overflow-hidden bg-surface px-6 py-32 md:px-12">
+    <section id="vision" className="relative overflow-hidden bg-surface px-6 py-24 md:px-12 md:py-32">
       <div className="mx-auto grid max-w-6xl items-center gap-16 md:grid-cols-2 md:gap-8">
         <Reveal>
           <p className="eyebrow mb-6 text-fg-subtle">The Uncertainty</p>
-          <h2 className="mb-6 text-4xl font-light leading-tight tracking-tighter text-fg-muted md:text-5xl">
+          <h2 className="mb-6 text-4xl font-light leading-tight tracking-tighter text-fg-soft md:text-5xl">
             “Will it fit?
             <br />
             How will it look?”
           </h2>
-          <p className="font-light leading-relaxed text-fg-subtle">
+          <p className="font-light leading-relaxed text-fg-muted">
             Traditional flat images leave customers guessing. They hesitate, abandon carts, or return items that
             don&apos;t match their space.
           </p>

@@ -8,19 +8,25 @@ export const DEMO_PATH = '/request-demo';
 
 export interface NavLink {
   label: string;
-  /** Router destination. Hash targets scroll to a section on the home page. */
+  /** Router destination. */
   to: string;
 }
 
+/**
+ * Primary navigation, shared by the desktop bar and the mobile sheet.
+ * All entries must be real routes; in-page anchors belong in the section
+ * they live in, not up here.
+ */
 export const NAV_LINKS: readonly NavLink[] = [
-  { label: 'About', to: '/about' },
-  { label: 'Experience', to: '/experience' },
+  { label: 'Home', to: '/' },
   { label: '3D Model', to: '/3d-model' },
-  { label: 'Value', to: '/#value' },
+  { label: 'Experience', to: '/experience' },
+  { label: 'About', to: '/about' },
 ];
 
+/** Real routes only; add Privacy / Terms here once those pages exist. */
 export const FOOTER_LINKS: readonly NavLink[] = [
-  { label: 'Privacy', to: '#' },
-  { label: 'Terms', to: '#' },
-  { label: 'Contact', to: '#' },
+  { label: 'Experience', to: '/experience' },
+  { label: 'About', to: '/about' },
+  { label: 'Contact', to: DEMO_PATH },
 ];
