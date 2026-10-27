@@ -214,6 +214,40 @@ export const updateReviewStatus = (token: string, id: string, status: ReviewStat
 export const deleteReview = (token: string, id: string) =>
   adminFetch<{ ok: true }>(token, `/api/reviews/${id}`, { method: 'DELETE' });
 
+/* ---- design requests (Craft page) ---- */
+
+export interface DesignInput {
+  brand: string;
+  variantId: string;
+  /** Extra parts' colours, from `encodePicks`. */
+  mix?: string;
+  name: string;
+  phone: string;
+  city?: string;
+  note?: string;
+  /** Honeypot: left empty by people, filled by bots. */
+  website?: string;
+}
+
+/** One part of a sent design, as the catalogue named it. */
+export interface DesignPart {
+  part: string;
+  colour: string | null;
+  hex: string | null;
+}
+
+/** Sends a design to the shop. Throws ApiValidationError with per-field messages when invalid. */
+export async function submitDesign(input: DesignInput): Promise<{ design: DesignPart[] }> {
+  const res = await fetch('/api/designs', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(input),
+  });
+  const body = (await res.json().catch(() => ({}))) as { design?: DesignPart[]; error?: string; errors?: Record<string, string> };
+  if (res.ok) return { design: body.design ?? [] };
+  throw new ApiValidationError(body.error ?? `Request failed (${res.status})`, body.errors as ApiValidationError['fieldErrors']);
+}
+
 export interface Category {
   id: string;
   slug: string;

@@ -238,6 +238,8 @@ export const brandBySlug = (slug: string | undefined): Brand | undefined =>
 export const storePath = (brand: string) => `/store/${brand}`;
 export const storeProductPath = (brand: string, productSlug: string) => `/store/${brand}/p/${productSlug}`;
 export const storeExperiencePath = (brand: string) => `/store/${brand}/experience`;
+/** The Craft page; `product` opens it on that piece. */
+export const storeCraftPath = (brand: string, product?: string) => `/store/${brand}/craft${product ? `?p=${product}` : ''}`;
 export const storeAboutPath = (brand: string) => `/store/${brand}/about`;
 export const storeContactPath = (brand: string) => `/store/${brand}/about#contact`;
 

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useOutletContext, useParams } from 'react-router-dom';
 import { Check, ChevronLeft, MessageCircle, Phone } from 'lucide-react';
 import type { Brand } from '@/data/brands';
-import { storePath, telLink, whatsappLink } from '@/data/brands';
+import { storeCraftPath, storePath, telLink, whatsappLink } from '@/data/brands';
 import { showroomBySlug } from '@/data/showrooms';
 import { useAsync } from '@/hooks/useAsync';
 import { ModelStage } from '@/features/experience/ModelStage';
@@ -203,6 +203,11 @@ export function StoreProductPage() {
           )}
 
           {shown && <PartColourRows variant={shown} picks={picks} onPick={(part, hex) => pick(product.slug, part, hex)} />}
+          {shown && (
+            <Link to={storeCraftPath(brand.slug, product.slug)} className="-mt-2 text-sm text-fg-muted underline underline-offset-4 hover:text-fg">
+              Design your own and send it to us
+            </Link>
+          )}
 
           {dims && (
             <div className="flex flex-col gap-2">

@@ -8,6 +8,7 @@ import {
   storeAboutPath,
   storeContactPath,
   storeExperiencePath,
+  storeCraftPath,
   storePath,
   telLink,
 } from '@/data/brands';
@@ -20,6 +21,7 @@ import { cn } from '@/lib/cn';
 const pages = (slug: string) => [
   { to: storePath(slug), label: 'Shop', end: true },
   { to: storeExperiencePath(slug), label: 'Experience', end: false },
+  { to: storeCraftPath(slug), label: 'Craft', end: false },
   { to: storeAboutPath(slug), label: 'About', end: false },
 ];
 

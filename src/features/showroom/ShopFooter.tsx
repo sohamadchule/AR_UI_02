@@ -1,6 +1,6 @@
 import type { MouseEvent } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { storeExperiencePath, storePath, telLink, whatsappLink, type Brand } from '@/data/brands';
+import { storeCraftPath, storeExperiencePath, storePath, telLink, whatsappLink, type Brand } from '@/data/brands';
 import { SECTION, type Showroom } from '@/data/showrooms';
 import { scrollToSection } from './scroll';
 
@@ -41,6 +41,11 @@ export function ShopFooter({ brand, showroom }: { brand: Brand; showroom: Showro
             <li>
               <Link to={storeExperiencePath(brand.slug)} className="transition-colors hover:text-fg">
                 Experience in 3D
+              </Link>
+            </li>
+            <li>
+              <Link to={storeCraftPath(brand.slug)} className="transition-colors hover:text-fg">
+                Craft your own design
               </Link>
             </li>
             <li>{sectionLink(SECTION.about, 'About the shop')}</li>

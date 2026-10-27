@@ -1,7 +1,7 @@
 import { useEffect, useState, type MouseEvent } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
-import { storeExperiencePath, storePath, type Brand } from '@/data/brands';
+import { storeCraftPath, storeExperiencePath, storePath, type Brand } from '@/data/brands';
 import { SECTION, type Showroom } from '@/data/showrooms';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import { scrollToSection } from './scroll';
@@ -18,6 +18,7 @@ interface NavItem {
 const navItems = (brand: Brand): NavItem[] => [
   { label: 'Home', section: SECTION.top },
   { label: 'Experience', to: storeExperiencePath(brand.slug) },
+  { label: 'Craft', to: storeCraftPath(brand.slug) },
   { label: 'Collection', section: SECTION.collection },
   { label: 'About the Shop', section: SECTION.about },
   { label: 'Contact', section: SECTION.visit },

@@ -15,6 +15,7 @@ import { StoreLayout } from '@/components/layout/StoreLayout';
 import { StoreHomePage } from '@/pages/store/StoreHomePage';
 import { StoreProductPage } from '@/pages/store/StoreProductPage';
 import { StoreExperiencePage } from '@/pages/store/StoreExperiencePage';
+import { StoreCraftPage } from '@/pages/store/StoreCraftPage';
 import { StoreAboutPage } from '@/pages/store/StoreAboutPage';
 
 export default function App() {
@@ -31,6 +32,7 @@ export default function App() {
         <Route index element={<StoreHomePage />} />
         <Route path="p/:productSlug" element={<StoreProductPage />} />
         <Route path="experience" element={<StoreExperiencePage />} />
+        <Route path="craft" element={<StoreCraftPage />} />
         <Route path="about" element={<StoreAboutPage />} />
       </Route>
       <Route element={<Layout />}>
