@@ -6,6 +6,8 @@ import { ModelStage } from '@/features/experience/ModelStage';
 import { ColourSwatches } from '@/features/experience/ColourSwatches';
 import { QrPanel } from '@/features/experience/QrPanel';
 import type { StoreProduct } from '@/features/store/catalog';
+import { usePartPicks } from '@/hooks/usePartPicks';
+import type { PartPicks } from '@/lib/color';
 
 export type ViewerMode = '3d' | 'room';
 
@@ -19,6 +21,7 @@ export function ViewerDialog({
   product,
   mode,
   initialVariantId,
+  initialPicks,
   onClose,
 }: {
   brand: Brand;
@@ -26,11 +29,15 @@ export function ViewerDialog({
   mode: ViewerMode;
   /** The colour to open on; the product's default otherwise. */
   initialVariantId?: string;
+  /** Colours already picked for the product's extra parts, carried into the dialog. */
+  initialPicks?: PartPicks;
   onClose: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [variantId, setVariantId] = useState(initialVariantId ?? product.variants[0]?.id ?? '');
   const variant = product.variants.find((v) => v.id === variantId) ?? product.variants[0];
+  const { picksFor, pick } = usePartPicks();
+  const picks = { ...initialPicks, ...picksFor(product.slug) };
 
   useEffect(() => {
     const d = dialog.current;
@@ -67,9 +74,15 @@ export function ViewerDialog({
 
       {mode === '3d' ? (
         <div className="space-y-5 p-5 sm:p-7">
-          <ModelStage variant={variant} className="h-[min(56vh,520px)] w-full !rounded-store" />
+          <ModelStage variant={variant} picks={picks} className="h-[min(56vh,520px)] w-full !rounded-store" />
           <div className="flex flex-wrap items-end justify-between gap-4">
-            <ColourSwatches variants={product.variants} activeId={variant.id} onSelect={setVariantId} />
+            <ColourSwatches
+              variants={product.variants}
+              activeId={variant.id}
+              onSelect={setVariantId}
+              picks={picks}
+              onPick={(part, hex) => pick(product.slug, part, hex)}
+            />
             <Link
               to={storeProductPath(brand.slug, product.slug)}
               onClick={onClose}
@@ -85,7 +98,7 @@ export function ViewerDialog({
             Scan this code with your phone. The {product.name} opens on your phone, and you can place it in your room at its real size
             (on phones that support AR).
           </p>
-          <QrPanel variant={variant} />
+          <QrPanel variant={variant} picks={picks} />
         </div>
       )}
     </dialog>

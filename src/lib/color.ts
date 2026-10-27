@@ -19,18 +19,73 @@ export interface TintMaterial {
   /** Its KHR_materials_sheen colour, or null when it has no sheen. */
   sheen: Rgb | null;
 }
+export interface PartColour {
+  name: string;
+  hex: string;
+}
+/**
+ * A separately coloured part of a model ("Seat", "Frame"). The first part follows the
+ * catalogue variant's colour; the others offer their own `colours`, the first of which
+ * is the part's own colour as uploaded.
+ */
+export interface TintPart {
+  name: string;
+  /** glTF material indices drawn as this part. */
+  materials: number[];
+  colours: PartColour[];
+}
 export interface Tint {
   materials: TintMaterial[];
+  /** Absent on single-part models: every material then changes together. */
+  parts?: TintPart[];
 }
-/** Show a model's tint materials in this colour. */
+/** Show some of a model's tint materials in this colour. */
 export interface Recolor {
   hex: string;
   tint: Tint;
 }
+/** Colours chosen for the extra parts (index 1 onwards in `tintParts`), as hex by part index. */
+export type PartPicks = Readonly<Record<number, string>>;
 
-/** The recolour a catalogue variant asks for, or null when it is shown as authored. */
-export const recolorOf = (v: { colorHex: string | null; model: { tint: Tint | null } }): Recolor | null =>
-  v.colorHex && v.model.tint ? { hex: v.colorHex, tint: v.model.tint } : null;
+/** A model's recolourable parts, main part first. Models without parts are one part. */
+export const tintParts = (tint: Tint): TintPart[] =>
+  tint.parts?.length ? tint.parts : [{ name: 'Colour', materials: tint.materials.map((m) => m.index), colours: [] }];
+
+/** The tint restricted to one part's materials. */
+export const partTint = (tint: Tint, part: TintPart): Tint => ({ materials: tint.materials.filter((m) => part.materials.includes(m.index)) });
+
+/**
+ * The recolours a catalogue variant asks for: its colour on the main part, and on each
+ * extra part the picked colour (or the part's own). Empty when it is shown as authored.
+ */
+export function recolorOf(v: { colorHex: string | null; model: { tint: Tint | null } }, picks: PartPicks = {}): Recolor[] {
+  const tint = v.model.tint;
+  if (!tint) return [];
+  return tintParts(tint).flatMap((part, i) => {
+    const hex = i === 0 ? v.colorHex : (picks[i] ?? part.colours[0]?.hex ?? null);
+    return hex ? [{ hex, tint: partTint(tint, part) }] : [];
+  });
+}
+
+/** Picks as a short URL value, e.g. "1-1E4FD8.2-C4581F"; only parts moved off their own colour. */
+export function encodePicks(tint: Tint | null, picks: PartPicks): string {
+  if (!tint) return '';
+  return tintParts(tint)
+    .flatMap((part, i) => (i > 0 && picks[i] && picks[i] !== part.colours[0]?.hex ? [`${i}-${picks[i].slice(1)}`] : []))
+    .join('.');
+}
+
+/** The inverse of `encodePicks`, keeping only colours the part actually offers. */
+export function decodePicks(tint: Tint | null, value: string | null): Record<number, string> {
+  const out: Record<number, string> = {};
+  if (!tint || !value) return out;
+  const parts = tintParts(tint);
+  for (const entry of value.split('.')) {
+    const [i, hex] = [Number(entry.split('-')[0]), `#${entry.split('-')[1] ?? ''}`.toUpperCase()];
+    if (i > 0 && parts[i]?.colours.some((c) => c.hex === hex)) out[i] = hex;
+  }
+  return out;
+}
 
 const toLinear = (c: number) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
 const toSrgb = (c: number) => (c <= 0.0031308 ? c * 12.92 : 1.055 * c ** (1 / 2.4) - 0.055);

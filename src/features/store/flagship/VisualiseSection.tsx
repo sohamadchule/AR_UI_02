@@ -4,6 +4,9 @@ import { ArrowRight, Ruler, ScanLine } from 'lucide-react';
 import { storeProductPath, type Brand } from '@/data/brands';
 import { qrUrl } from '@/lib/api';
 import { ModelStage } from '@/features/experience/ModelStage';
+import { PartColourRows } from '@/features/experience/ColourSwatches';
+import { usePartPicks } from '@/hooks/usePartPicks';
+import { encodePicks, tintParts } from '@/lib/color';
 import { defaultVariant, dimensionsCm, doorwayNote, formatInr, type StoreProduct } from '../catalog';
 import { cn } from '@/lib/cn';
 
@@ -14,8 +17,11 @@ import { cn } from '@/lib/cn';
  */
 export function VisualiseSection({ brand, product }: { brand: Brand; product: StoreProduct }) {
   const [pickedId, setPickedId] = useState<string | null>(null);
+  const { picksFor, pick } = usePartPicks();
   const variant = product.variants.find((v) => v.id === pickedId) ?? defaultVariant(product);
   if (!variant) return null;
+  const picks = picksFor(product.slug);
+  const parts = variant.model.tint ? tintParts(variant.model.tint) : [];
 
   const dims = dimensionsCm(product, variant);
   const size = dims && `${Math.round(dims.width)} × ${Math.round(dims.depth)} × ${Math.round(dims.height)} cm`;
@@ -35,7 +41,7 @@ export function VisualiseSection({ brand, product }: { brand: Brand; product: St
 
           <div className="mt-8 flex flex-col gap-2">
             <span className="eyebrow text-fg-subtle">
-              Fabric · <span className="text-fg">{variant.name}</span>
+              {parts.length > 1 ? parts[0].name : 'Fabric'} · <span className="text-fg">{variant.name}</span>
             </span>
             <div role="radiogroup" aria-label="Choose a fabric" className="flex flex-wrap gap-2">
               {product.variants.map((v) => {
@@ -62,6 +68,7 @@ export function VisualiseSection({ brand, product }: { brand: Brand; product: St
               })}
             </div>
           </div>
+          <PartColourRows className="mt-6" variant={variant} picks={picks} onPick={(part, hex) => pick(product.slug, part, hex)} />
 
           {size && (
             <div className="mt-6 flex gap-3 border-t border-line/10 pt-5 text-sm">
@@ -77,7 +84,7 @@ export function VisualiseSection({ brand, product }: { brand: Brand; product: St
           <div className="mt-6 hidden items-center gap-4 rounded-store border border-line/12 bg-surface p-3 pr-5 md:flex">
             <img
               key={variant.id}
-              src={qrUrl(variant.id)}
+              src={qrUrl(variant.id, { mix: encodePicks(variant.model.tint, picks) })}
               alt={`QR code: open the ${product.name} in ${variant.name} on your phone`}
               width={84}
               height={84}
@@ -105,7 +112,7 @@ export function VisualiseSection({ brand, product }: { brand: Brand; product: St
 
         {/* On a phone the model leads: it carries the "View in AR" button. */}
         <div className="relative order-first min-w-0 md:order-none">
-          <ModelStage variant={variant} className="aspect-square w-full md:aspect-[5/4]" showArUnavailable={false} />
+          <ModelStage variant={variant} picks={picks} className="aspect-square w-full md:aspect-[5/4]" showArUnavailable={false} />
           {size && (
             <span className="pointer-events-none absolute left-3 top-3 rounded-full border border-line/15 bg-surface/85 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-fg-soft backdrop-blur-md">
               True size · {size}

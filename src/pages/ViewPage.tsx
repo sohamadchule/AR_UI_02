@@ -1,8 +1,10 @@
 import { useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { Cuboid } from 'lucide-react';
 import { fetchVariant, fetchVariants } from '@/lib/api';
 import { useAsync } from '@/hooks/useAsync';
+import { usePartPicks } from '@/hooks/usePartPicks';
+import { decodePicks } from '@/lib/color';
 import { SITE } from '@/data/site';
 import { ModelStage } from '@/features/experience/ModelStage';
 import { ColourSwatches } from '@/features/experience/ColourSwatches';
@@ -24,6 +26,9 @@ export function ViewPage() {
     variantId,
   );
   const [pickedId, setPickedId] = useState<string | null>(null);
+  // A QR made after mixing part colours carries them as ?mix=; the shopper can change them from there.
+  const [params] = useSearchParams();
+  const { picksFor, pick } = usePartPicks();
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-md flex-col px-4 pb-10 pt-5">
@@ -53,6 +58,7 @@ export function ViewPage() {
 
       {result.status === 'ready' && (() => {
         const shown = result.data.siblings.find((v) => v.id === pickedId) ?? result.data.variant;
+        const picks = { ...decodePicks(shown.model.tint, params.get('mix')), ...picksFor(shown.product.id) };
         return (
         <>
           <h1 className="text-2xl font-light tracking-tight text-fg">{shown.product.name}</h1>
@@ -60,10 +66,16 @@ export function ViewPage() {
             {shown.name}
             {shown.material ? ` · ${shown.material}` : ''}
           </p>
-          <ModelStage variant={shown} className="min-h-[58vh] flex-1" />
+          <ModelStage variant={shown} picks={picks} className="min-h-[58vh] flex-1" />
           <p className="pt-3 text-center text-xs uppercase tracking-widest text-fg-subtle">Rotate · Zoom · Explore</p>
           <div className="pt-4">
-            <ColourSwatches variants={result.data.siblings} activeId={shown.id} onSelect={setPickedId} />
+            <ColourSwatches
+              variants={result.data.siblings}
+              activeId={shown.id}
+              onSelect={setPickedId}
+              picks={picks}
+              onPick={(part, hex) => pick(shown.product.id, part, hex)}
+            />
           </div>
           {shown.product.description && (
             <p className="pt-4 text-sm leading-relaxed text-fg-muted">{shown.product.description}</p>

@@ -7,6 +7,9 @@ import { showroomBySlug } from '@/data/showrooms';
 import { useAsync } from '@/hooks/useAsync';
 import { ModelStage } from '@/features/experience/ModelStage';
 import { QrPanel } from '@/features/experience/QrPanel';
+import { PartColourRows } from '@/features/experience/ColourSwatches';
+import { usePartPicks } from '@/hooks/usePartPicks';
+import { tintParts } from '@/lib/color';
 import {
   curate,
   defaultVariant,
@@ -78,6 +81,7 @@ export function StoreProductPage() {
   const { productSlug = '' } = useParams();
   const catalogue = useAsync(loadCatalogue, 'store-catalogue');
   const [pickedId, setPickedId] = useState<string | null>(null);
+  const { picksFor, pick } = usePartPicks();
 
   const product =
     catalogue.status === 'ready'
@@ -108,6 +112,9 @@ export function StoreProductPage() {
   const finishes = shown
     ? product.variants.map((v) => ({ id: v.id, name: v.name, hex: v.colorHex }))
     : product.sampleFinishes.map((f) => ({ id: f.name, name: f.name, hex: f.hex }));
+  // A model with separately coloured parts names its main part instead of "Finish", with a row per other part.
+  const parts = shown?.model.tint ? tintParts(shown.model.tint) : [];
+  const picks = picksFor(product.slug);
 
   return (
     <div className="mx-auto w-full max-w-[1180px] px-4 py-7 sm:px-6 md:py-12">
@@ -121,7 +128,7 @@ export function StoreProductPage() {
       <div className="grid gap-8 md:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] md:gap-12">
         <div className="min-w-0">
           {shown ? (
-            <ModelStage variant={shown} className="aspect-[10/9] w-full" />
+            <ModelStage variant={shown} picks={picks} className="aspect-[10/9] w-full" />
           ) : (
             <div className="grid aspect-[10/9] w-full place-items-center rounded-store border border-dashed border-line/20 bg-surface-sunken p-6 text-center">
               <p className="max-w-xs text-sm text-fg-muted">
@@ -166,7 +173,7 @@ export function StoreProductPage() {
 
           {finishes.length > 1 && (
             <div className="flex flex-col gap-2">
-              <span className="eyebrow text-fg-subtle">Finish</span>
+              <span className="eyebrow text-fg-subtle">{parts.length > 1 ? parts[0].name : 'Finish'}</span>
               <div role="radiogroup" aria-label="Choose a finish" className="flex flex-wrap gap-2">
                 {finishes.map((f) => {
                   const selected = shown ? f.id === shown.id : false;
@@ -194,6 +201,8 @@ export function StoreProductPage() {
               </div>
             </div>
           )}
+
+          {shown && <PartColourRows variant={shown} picks={picks} onPick={(part, hex) => pick(product.slug, part, hex)} />}
 
           {dims && (
             <div className="flex flex-col gap-2">
@@ -300,7 +309,7 @@ export function StoreProductPage() {
             {dims ? `${Math.round(dims.width)} × ${Math.round(dims.depth)} × ${Math.round(dims.height)} cm` : 'the real size'}{' '}
             against the space you point it at.
           </p>
-          <QrPanel variant={shown} />
+          <QrPanel variant={shown} picks={picks} />
         </section>
       )}
     </div>

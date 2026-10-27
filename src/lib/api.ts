@@ -54,16 +54,19 @@ async function getJson<T>(path: string): Promise<T> {
 export const fetchVariants = () => getJson<{ variants: Variant[] }>('/api/variants').then((r) => r.variants);
 export const fetchVariant = (id: string) => getJson<{ variant: Variant }>(`/api/variants/${id}`).then((r) => r.variant);
 
-export const qrUrl = (id: string, opts: { format?: 'png' | 'svg'; download?: boolean } = {}) => {
+/** `mix`: colours picked for a product's extra parts (`encodePicks`), carried into the page the code opens. */
+export const qrUrl = (id: string, opts: { format?: 'png' | 'svg'; download?: boolean; mix?: string } = {}) => {
   const params = new URLSearchParams();
   if (opts.format) params.set('format', opts.format);
   if (opts.download) params.set('download', '1');
+  if (opts.mix) params.set('mix', opts.mix);
   const query = params.toString();
   return `/api/variants/${id}/qr${query ? `?${query}` : ''}`;
 };
 
 /** The URL a variant's QR encodes, as resolved by the server (LAN / tunnel aware). */
-export const fetchShareUrl = (id: string) => getJson<{ url: string }>(`/api/variants/${id}/share`).then((r) => r.url);
+export const fetchShareUrl = (id: string, mix = '') =>
+  getJson<{ url: string }>(`/api/variants/${id}/share${mix ? `?mix=${mix}` : ''}`).then((r) => r.url);
 
 /** The stable public page for a variant: the target a QR code encodes. */
 export const viewPath = (id: string) => `/view/${id}`;
@@ -258,7 +261,13 @@ export interface NewProductInput {
   status: 'draft' | 'active';
   categoryId?: string;
   newCategory?: string;
-  model: { sha256: string; filename: string; tintMaterials: number[] };
+  model: {
+    sha256: string;
+    filename: string;
+    tintMaterials: number[];
+    /** Two or more separately coloured parts; the first follows `colours`, the others offer their own. */
+    parts?: { name: string; materials: number[]; colours: { name: string; hex: string }[] }[];
+  };
   /** Values in `unit`; empty fields are omitted. */
   dimensions: { unit: Unit; width?: number; height?: number; depth?: number };
   colours: { name: string; hex?: string; fabric?: string; sku?: string; isDefault: boolean }[];

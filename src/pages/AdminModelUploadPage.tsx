@@ -14,7 +14,7 @@ import {
   type ModelMaterial,
   type UploadedModel,
 } from '@/lib/api';
-import { SAME_COLOUR_DE, achievedHex, deltaE, isAchievable, isHex, nameColour, suggestColours, type Tint } from '@/lib/color';
+import { SAME_COLOUR_DE, achievedHex, deltaE, isAchievable, isHex, nameColour, suggestColours, type Recolor, type Tint } from '@/lib/color';
 import { UNITS, formatLength, fromMm, type Unit } from '@/lib/units';
 import { suggestCategory } from '@/lib/category';
 import { cn } from '@/lib/cn';
@@ -66,6 +66,28 @@ const inputCls =
 const labelCls = 'mb-1.5 block text-xs uppercase tracking-[0.12em] text-fg-muted';
 let rowSeq = 0;
 const newKey = () => `row-${++rowSeq}`;
+
+/** A colour offered for an extra part (not the main one, whose colours are the catalogue options). */
+interface PaletteRow {
+  key: string;
+  name: string;
+  hex: string;
+}
+/** An extra part's colours: its own colour first (named automatically unless typed), then the added ones. */
+interface Palette {
+  originalName: string | null;
+  rows: PaletteRow[];
+}
+const EMPTY_PALETTE: Palette = { originalName: null, rows: [] };
+/** Material names that say nothing about the part ("lambert3SG", "Material 4"). */
+const GENERIC_NAME = /^(material|lambert|phong|blinn|standard|mat|default)\b|^\W*$/i;
+/** A part name for a material: "seat_cushion_02" → "Seat cushion"; generic names → `fallback`. */
+function partNameOf(materialName: string, fallback: string) {
+  // Exporters prefix and suffix numbers ("02___Default", "Box001"): they aren't part of the name.
+  const words = partStem(materialName).replace(/[_\-.]+/g, ' ').replace(/^[\d\s]+/, '').trim();
+  if (!words || GENERIC_NAME.test(words)) return fallback;
+  return `${words[0].toUpperCase()}${words.slice(1).toLowerCase()}`.slice(0, 40);
+}
 
 /** "Cylinder007" → "Cylinder": parts exported from one tool usually share such a stem. */
 const partStem = (name: string) => name.replace(/[\s._:-]*\d+$/, '').replace(/[\s._:-]+$/, '') || name;
@@ -119,6 +141,14 @@ export function AdminModelUploadPage() {
   const [uploading, setUploading] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [tintSet, setTintSet] = useState<Set<number>>(new Set());
+  /** Part name per ticked material (glTF index): materials sharing a name change colour together. */
+  const [partOf, setPartOf] = useState<Record<number, string>>({});
+  /** Colours for each extra part, keyed by the part's first material. */
+  const [palettes, setPalettes] = useState<Record<number, Palette>>({});
+  /** The colour chip open for editing in step 4, as "<part key or main>/<row key>". */
+  const [editing, setEditing] = useState<string | null>(null);
+  /** Palette row shown in the preview for each extra part, keyed like `palettes`; its own colour otherwise. */
+  const [previewPicks, setPreviewPicks] = useState<Record<number, string>>({});
   /** Bumped when a part stops being recoloured: the preview reloads to show its authored colour again. */
   const [previewEpoch, setPreviewEpoch] = useState(0);
   /** Material glowing in the preview, so the uploader can see which part it is. */
@@ -147,12 +177,13 @@ export function AdminModelUploadPage() {
   const [newCategory, setNewCategory] = useState('');
   const [status, setStatus] = useState<'active' | 'draft'>('active');
 
-  const [unit, setUnit] = useState<Unit>('mm');
+  const [unit, setUnit] = useState<Unit>('cm');
   /** File units → metres, chosen when the model's own size is implausible. */
   const [modelScale, setModelScale] = useState(1);
-  /** Editing one side resizes the others to keep the model's proportions. */
-  const [keepProportions, setKeepProportions] = useState(true);
+  /** Only what the uploader typed: the model's size is offered as a suggestion, never written in. */
   const [dims, setDims] = useState<Record<Axis, string>>({ width: '', height: '', depth: '' });
+  /** The side typed last: the other sides are suggested from it and the model's shape. */
+  const [anchorAxis, setAnchorAxis] = useState<Axis | null>(null);
 
   const [rows, setRows] = useState<ColourRow[]>([]);
   const [defaultKey, setDefaultKey] = useState('');
@@ -211,11 +242,35 @@ export function AdminModelUploadPage() {
 
   // ---- derived colour state -------------------------------------------------
   const selected = useMemo(() => model?.materials.filter((m) => tintSet.has(m.index)) ?? [], [model, tintSet]);
-  const tint: Tint | null = useMemo(
-    () => (selected.length ? { materials: selected.map(({ index, texAvg, base, sheen }) => ({ index, texAvg, base, sheen })) } : null),
-    [selected],
-  );
-  const baseHex = selected[0]?.hex ?? null;
+  /**
+   * Ticked materials grouped into parts by name, biggest surface first. The first part is
+   * the main one: its colours are the catalogue options; customers mix the others freely.
+   */
+  const parts = useMemo(() => {
+    const groups = new Map<string, ModelMaterial[]>();
+    for (const m of selected) {
+      const name = (partOf[m.index] ?? m.name).trim().toLowerCase();
+      groups.set(name, [...(groups.get(name) ?? []), m]);
+    }
+    return [...groups.values()].map((ms) => ({
+      key: ms[0].index,
+      name: (partOf[ms[0].index] ?? ms[0].name).trim(),
+      materials: ms,
+      baseHex: ms[0].hex,
+      tint: { materials: ms.map(({ index, texAvg, base, sheen }) => ({ index, texAvg, base, sheen })) } as Tint,
+    }));
+  }, [selected, partOf]);
+  type Part = (typeof parts)[number];
+  const multiPart = parts.length > 1;
+  const tint: Tint | null = parts[0]?.tint ?? null;
+  const baseHex = parts[0]?.baseHex ?? null;
+  const paletteOf = (part: Part) => palettes[part.key] ?? EMPTY_PALETTE;
+  /** An extra part's colours as the customer will see them: its own first. */
+  const partColours = (part: Part) => [
+    { key: 'original', name: paletteOf(part).originalName ?? nameColour(part.baseHex), hex: part.baseHex },
+    ...paletteOf(part).rows,
+  ];
+  const partPreviewHex = (part: Part) => partColours(part).find((c) => c.key === previewPicks[part.key])?.hex ?? part.baseHex;
 
   // The original colour's automatic name follows whichever part is ticked (until the uploader types one).
   useEffect(() => {
@@ -230,7 +285,13 @@ export function AdminModelUploadPage() {
   );
   const previewRow = rows.find((r) => r.key === previewKey) ?? rows.find((r) => r.key === defaultKey) ?? rows[0];
   const previewHex = previewRow ? rowHex(previewRow) : null;
-  const recolor = useMemo(() => (tint && previewHex && isHex(previewHex) ? { hex: previewHex, tint } : null), [tint, previewHex]);
+  const recolor: Recolor[] = [
+    ...(tint && previewHex && isHex(previewHex) ? [{ hex: previewHex, tint }] : []),
+    ...parts.slice(1).flatMap((part) => {
+      const hex = partPreviewHex(part);
+      return isHex(hex) ? [{ hex, tint: part.tint }] : [];
+    }),
+  ];
 
   // ---- model upload ----------------------------------------------------------
   async function chooseFile(f: File | undefined) {
@@ -259,13 +320,18 @@ export function AdminModelUploadPage() {
       setSplitFor(null);
       setModel(uploaded);
       setTintSet(new Set(tinted));
+      // Pre-ticked materials start as one part: they're the upholstery (or the main body).
+      const firstName = tinted.length === 1 && firstTinted?.largest ? 'Body' : 'Fabric';
+      setPartOf(Object.fromEntries(tinted.map((i) => [i, firstName])));
+      setPalettes({});
+      setPreviewPicks({});
+      setEditing(null);
       setHighlight(null);
       setRows([original]);
       setDefaultKey(original.key);
       setPreviewKey(original.key);
       const scale = uploaded.dimensionsMm ? guessScale(uploaded.dimensionsMm) : 1;
       setModelScale(scale);
-      if (uploaded.dimensionsMm) setDims(toUnit(scaleSize(uploaded.dimensionsMm, scale), unit));
       if (!name.trim()) setName(f.name.replace(/\.glb$/i, '').replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()));
     } catch (e) {
       if (!handleAuthFailure(e)) setErrors({ model: e instanceof Error ? e.message : 'Upload failed.' });
@@ -282,6 +348,11 @@ export function AdminModelUploadPage() {
 
   function toggleTint(index: number) {
     if (tintSet.has(index)) setPreviewEpoch((n) => n + 1);
+    else {
+      // A newly ticked material becomes a part of its own, named after it (rename it to join another part).
+      const m = model?.materials.find((x) => x.index === index);
+      setPartOf((p) => ({ ...p, [index]: p[index] ?? partNameOf(m?.name ?? '', `Part ${parts.length + 1}`) }));
+    }
     setTintSet((current) => {
       const next = new Set(current);
       if (next.has(index)) next.delete(index);
@@ -327,6 +398,12 @@ export function AdminModelUploadPage() {
       setModel(next);
       setPreviewUrl(url);
       setSplitFor(null);
+      // Split off a recolourable material: the new one is ticked too, as its own part under the name given.
+      const fromTinted = next.created.filter((c) => tintSet.has(c.from));
+      if (fromTinted.length) {
+        setTintSet((current) => new Set([...current, ...fromTinted.map((c) => c.index)]));
+        setPartOf((p) => ({ ...p, ...Object.fromEntries(fromTinted.map((c) => [c.index, c.name.slice(0, 40)])) }));
+      }
       setHighlight(next.created[0]?.index ?? null); // show what was split off
     } catch (e) {
       if (!handleAuthFailure(e)) setSplitError(e instanceof Error ? e.message : 'Could not split the parts.');
@@ -348,21 +425,33 @@ export function AdminModelUploadPage() {
   }
 
   // ---- dimensions ------------------------------------------------------------
-  function toUnit(mm: Size, u: Unit): Record<Axis, string> {
-    return { width: String(fromMm(mm.width, u)), height: String(fromMm(mm.height, u)), depth: String(fromMm(mm.depth, u)) };
+  function editDimension(axis: Axis, raw: string) {
+    setDims((d) => ({ ...d, [axis]: raw }));
+    if (Number(raw) > 0) setAnchorAxis(axis);
   }
 
-  /** Edit one side; with "keep proportions", resize the other sides to the model's shape. */
-  function editDimension(axis: Axis, raw: string) {
-    const value = Number(raw);
+  /**
+   * A suggested size per side, in the current unit: the model's shape scaled to the side
+   * typed last, or the model's own (scale-corrected) size before anything is typed.
+   */
+  const suggestedDims = useMemo((): Record<Axis, number> | null => {
     const shape = model?.dimensionsMm;
-    if (!keepProportions || !shape || !(value > 0) || !(shape[axis] > 0)) {
-      setDims((d) => ({ ...d, [axis]: raw }));
-      return;
-    }
-    const factor = value / UNITS[unit].perMm / shape[axis];
-    const resized = toUnit(scaleSize(shape, factor), unit);
-    setDims({ ...resized, [axis]: raw });
+    if (!shape) return null;
+    const typed = (a: Axis) => Number(dims[a]) > 0;
+    const anchor = anchorAxis && typed(anchorAxis) ? anchorAxis : AXES.find(typed);
+    const size = anchor && shape[anchor] > 0 ? scaleSize(shape, Number(dims[anchor]) / UNITS[unit].perMm / shape[anchor]) : scaleSize(shape, modelScale);
+    return { width: fromMm(size.width, unit), height: fromMm(size.height, unit), depth: fromMm(size.depth, unit) };
+  }, [model, dims, anchorAxis, unit, modelScale]);
+  const emptyAxes = AXES.filter((a) => !dims[a].trim());
+
+  /** Copy the suggestions into the sides still left empty; typed sides are kept. */
+  function fillSuggested() {
+    if (!suggestedDims) return;
+    setDims((d) => {
+      const out = { ...d };
+      for (const axis of AXES) if (!d[axis].trim()) out[axis] = String(suggestedDims[axis]);
+      return out;
+    });
   }
 
   function changeUnit(next: Unit) {
@@ -382,6 +471,7 @@ export function AdminModelUploadPage() {
     const row: ColourRow = { key: newKey(), name: colourName, hex, fabric: rows[0]?.fabric ?? '', sku: '', original: false };
     setRows((r) => [...r, row]);
     setPreviewKey(row.key);
+    setEditing(`main/${row.key}`);
     setErrors((er) => ({ ...er, colours: '' }));
   }
 
@@ -391,6 +481,31 @@ export function AdminModelUploadPage() {
     setRows((r) => r.filter((x) => x.key !== key));
     if (defaultKey === key) setDefaultKey(rows[0].key);
     if (previewKey === key) setPreviewKey(defaultKey === key ? rows[0].key : defaultKey);
+  }
+
+  // ---- extra parts -----------------------------------------------------------
+  const updatePalette = (part: Part, patch: (p: Palette) => Palette) =>
+    setPalettes((all) => ({ ...all, [part.key]: patch(all[part.key] ?? EMPTY_PALETTE) }));
+
+  function addPartColour(part: Part, hex: string, colourName: string) {
+    const row: PaletteRow = { key: newKey(), name: colourName, hex };
+    updatePalette(part, (p) => ({ ...p, rows: [...p.rows, row] }));
+    setPreviewPicks((picks) => ({ ...picks, [part.key]: row.key }));
+    setEditing(`${part.key}/${row.key}`);
+    setErrors((er) => ({ ...er, parts: '' }));
+  }
+
+  /** Rename a part (all its materials). Typing another part's name merges the two. */
+  const renamePart = (part: Part, value: string) =>
+    setPartOf((p) => ({ ...p, ...Object.fromEntries(part.materials.map((m) => [m.index, value])) }));
+
+  function partRowWarning(part: Part, row: PaletteRow): string | null {
+    if (!isHex(row.hex)) return 'Enter a colour like #1E4FD8.';
+    const colours = partColours(part);
+    const twin = colours.slice(0, colours.findIndex((c) => c.key === row.key)).find((o) => deltaE(o.hex, row.hex) < SAME_COLOUR_DE);
+    if (twin) return `Looks almost the same as “${twin.name || 'another colour'}”.`;
+    if (!isAchievable(row.hex, part.tint)) return `This texture can't reach this colour; it will show as ${achievedHex(row.hex, part.tint.materials[0].texAvg)}.`;
+    return null;
   }
 
   function rowWarning(r: ColourRow): string | null {
@@ -415,10 +530,21 @@ export function AdminModelUploadPage() {
       if (!(Number(v) > 0)) e.dimensions = 'Sizes must be positive numbers (or left empty).';
       else if (Number(v) / UNITS[unit].perMm > MAX_SIZE_MM) e.dimensions = `${axis[0].toUpperCase()}${axis.slice(1)} is too large: the limit is ${formatLength(MAX_SIZE_MM, unit)} (100 m).`;
     }
+    // The file's own size is wrong here, so without a typed size the product would show at that wrong size.
+    if (modelScale !== 1 && emptyAxes.length === AXES.length) e.dimensions = 'This file was exported at the wrong scale: enter the real size (or use the suggestion).';
     const names = rows.map((r) => r.name.trim().toLowerCase());
     if (names.some((n) => !n)) e.colours = 'Every colour needs a name.';
     else if (new Set(names).size !== names.length) e.colours = 'Colour names must be different.';
     else if (rows.some((r) => !r.original && !isHex(r.hex))) e.colours = 'Fix the colour values.';
+    if (multiPart && parts.some((part) => !part.name)) e.parts = 'Every part needs a name.';
+    for (const part of parts.slice(1)) {
+      const colours = partColours(part);
+      if (colours.length < 2) e.parts = `${part.name || 'A part'} has only its own colour: add another, or untick it in step 1.`;
+      const partNames = colours.map((c) => c.name.trim().toLowerCase());
+      if (partNames.some((n) => !n)) e.parts = `${part.name}: every colour needs a name.`;
+      else if (new Set(partNames).size !== partNames.length) e.parts = `${part.name}: colour names must be different.`;
+      else if (colours.some((c) => !isHex(c.hex))) e.parts = `${part.name}: fix the colour values.`;
+    }
     return e;
   }
 
@@ -438,7 +564,18 @@ export function AdminModelUploadPage() {
           description: description.trim() || undefined,
           status,
           ...(categoryId === NEW_CATEGORY ? { newCategory: newCategory.trim() } : { categoryId }),
-          model: { sha256: model.sha256, filename: model.filename, tintMaterials: [...tintSet] },
+          model: {
+            sha256: model.sha256,
+            filename: model.filename,
+            tintMaterials: [...tintSet],
+            parts: multiPart
+              ? parts.map((part, i) => ({
+                  name: part.name,
+                  materials: part.materials.map((m) => m.index),
+                  colours: i === 0 ? [] : partColours(part).map((c) => ({ name: c.name.trim(), hex: c.hex })),
+                }))
+              : undefined,
+          },
           dimensions,
           colours: rows.map((r) => ({
             name: r.name.trim(),
@@ -467,20 +604,214 @@ export function AdminModelUploadPage() {
     setHistory([]);
     setSplitFor(null);
     setTintSet(new Set());
+    setPartOf({});
+    setPalettes({});
+    setPreviewPicks({});
+    setEditing(null);
     setName('');
     setDescription('');
     setCategoryId(categories.length ? '' : NEW_CATEGORY);
     setCategoryPicked(false);
     setNewCategory('');
     setDims({ width: '', height: '', depth: '' });
+    setAnchorAxis(null);
     setModelScale(1);
-    setKeepProportions(true);
     setRows([]);
     setErrors({});
     setFormError('');
   }
 
   if (!token) return <AdminSignIn onSignIn={signIn} purpose="upload models" error={authError} />;
+
+  const editPartRow = (part: Part, key: string, patch: Partial<PaletteRow>) =>
+    updatePalette(part, (p) => ({ ...p, rows: p.rows.map((r) => (r.key === key ? { ...r, ...patch } : r)) }));
+
+  /**
+   * Step 4 for one part: its colours as chips (click one to see it in the preview and edit it),
+   * then one-click suggestions. `part` is null when nothing is ticked: one fixed colour.
+   */
+  function renderColourCard(part: Part | null, i: number) {
+    const main = i === 0;
+    const items = main
+      ? rows.map((r) => ({ key: r.key, name: r.name, hex: rowHex(r) ?? '', original: r.original }))
+      : partColours(part!).map((c) => ({ ...c, original: c.key === 'original' }));
+    const shownKey = main ? previewRow?.key : items.some((c) => c.key === previewPicks[part!.key]) ? previewPicks[part!.key] : 'original';
+    const offered = !part ? [] : main ? suggestions : suggestColours(part.baseHex, part.tint, items.map((c) => c.hex));
+    const id = (key: string) => `${main ? 'main' : part!.key}/${key}`;
+    const open = items.find((c) => editing === id(c.key));
+    const warningOf = (key: string) => {
+      if (main) return rowWarning(rows.find((r) => r.key === key)!);
+      const row = paletteOf(part!).rows.find((r) => r.key === key);
+      return row ? partRowWarning(part!, row) : null;
+    };
+    const select = (key: string) => {
+      if (main) setPreviewKey(key);
+      else setPreviewPicks((picks) => ({ ...picks, [part!.key]: key }));
+      setEditing((e) => (e === id(key) ? null : id(key)));
+    };
+    const rename = (key: string, value: string) => {
+      if (main) updateRow(key, { name: value, autoName: false });
+      else if (key === 'original') updatePalette(part!, (pal) => ({ ...pal, originalName: value }));
+      else editPartRow(part!, key, { name: value });
+    };
+    const setHex = (key: string, hex: string) => (main ? updateRow(key, { hex }) : editPartRow(part!, key, { hex }));
+    const remove = (key: string) => {
+      if (main) removeRow(key);
+      else updatePalette(part!, (pal) => ({ ...pal, rows: pal.rows.filter((r) => r.key !== key) }));
+      setEditing(null);
+    };
+    const add = (hex: string, colourName: string) => (main ? addColour(hex, colourName) : addPartColour(part!, hex, colourName));
+    const mainRow = open && main ? rows.find((r) => r.key === open.key) : undefined;
+    const openWarning = open && !open.original ? warningOf(open.key) : null;
+
+    return (
+      <div
+        key={part?.key ?? 'none'}
+        onMouseEnter={() => multiPart && part && setHighlight(part.key)}
+        onMouseLeave={() => multiPart && setHighlight(null)}
+        className="rounded-2xl border border-line/10 p-5"
+      >
+        <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1">
+          {multiPart && part ? (
+            <input
+              value={partOf[part.key] ?? part.materials[0].name}
+              onChange={(e) => renamePart(part, e.target.value)}
+              placeholder="Name this part"
+              maxLength={40}
+              aria-label="Part name"
+              title="Rename this part"
+              className="min-w-[8rem] flex-1 border-b border-dashed border-line/25 bg-transparent pb-0.5 text-base font-medium text-fg placeholder:text-fg-subtle hover:border-line/50 focus:border-fg focus:outline-none"
+            />
+          ) : (
+            <p className="text-base font-medium text-fg">Colours</p>
+          )}
+          {multiPart && main && (
+            <span className="rounded-full bg-fg/10 px-2.5 py-0.5 text-[10px] uppercase tracking-wider text-fg-muted">Main · catalogue options</span>
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {items.map((c) => {
+            const warn = !c.original && warningOf(c.key);
+            return (
+              <button
+                key={c.key}
+                type="button"
+                onClick={() => select(c.key)}
+                aria-pressed={shownKey === c.key}
+                aria-expanded={editing === id(c.key)}
+                className={cn(
+                  'flex items-center gap-2 rounded-full border py-1 pl-1 pr-3 text-sm transition-colors',
+                  editing === id(c.key) ? 'border-fg bg-fg/[0.06]' : shownKey === c.key ? 'border-fg/50' : 'border-line/15 hover:border-fg/40',
+                )}
+              >
+                <span className="h-6 w-6 shrink-0 rounded-full border border-line/20" style={{ backgroundColor: isHex(c.hex) ? c.hex : 'transparent' }} aria-hidden />
+                {c.name.trim() || <span className="text-fg-subtle">Name it</span>}
+                {main && rows.length > 1 && defaultKey === c.key && <span className="text-[10px] uppercase tracking-wider text-fg-subtle">first</span>}
+                {warn && <AlertTriangle size={12} className="text-amber-500" aria-label="Has a warning" />}
+              </button>
+            );
+          })}
+          {part && (
+            <button
+              type="button"
+              onClick={() => add(offered[0]?.hex ?? '#808080', '')}
+              className="flex items-center gap-1.5 rounded-full border border-dashed border-line/30 px-3 py-1.5 text-xs text-fg-muted hover:border-fg hover:text-fg"
+            >
+              <Plus size={13} aria-hidden /> Custom colour
+            </button>
+          )}
+        </div>
+
+        {open && (
+          <div className="mt-3 rounded-xl bg-fg/[0.03] p-4">
+            <div className="flex flex-wrap items-end gap-3">
+              {part && !open.original && (
+                <label className="relative block h-10 w-10 shrink-0 cursor-pointer overflow-hidden rounded-full border border-line/20" title="Pick a colour">
+                  <span className="absolute inset-0" style={{ backgroundColor: isHex(open.hex) ? open.hex : 'transparent' }} />
+                  <input
+                    type="color"
+                    value={isHex(open.hex) ? open.hex : '#000000'}
+                    onChange={(e) => setHex(open.key, e.target.value.toUpperCase())}
+                    className="absolute inset-0 cursor-pointer opacity-0"
+                    aria-label={`Colour for ${open.name || 'this option'}`}
+                  />
+                </label>
+              )}
+              <label className="min-w-[140px] flex-1">
+                <span className={labelCls}>
+                  Colour name *{open.original && <span className="ml-2 normal-case tracking-normal text-fg-subtle">(model&apos;s own)</span>}
+                </span>
+                <input className={inputCls} value={open.name} maxLength={80} autoFocus={!open.name} onChange={(e) => rename(open.key, e.target.value)} />
+              </label>
+              {part && !open.original && (
+                <label className="w-28">
+                  <span className={labelCls}>Hex</span>
+                  <input className={inputCls} value={open.hex} maxLength={7} onChange={(e) => setHex(open.key, e.target.value.trim().toUpperCase())} />
+                </label>
+              )}
+              {mainRow && (
+                <>
+                  <label className="w-32">
+                    <span className={labelCls}>Fabric</span>
+                    <input className={inputCls} list="fabric-options" value={mainRow.fabric} maxLength={80} onChange={(e) => updateRow(mainRow.key, { fabric: e.target.value })} placeholder="Velvet" />
+                  </label>
+                  <label className="w-36">
+                    <span className={labelCls}>SKU</span>
+                    <input className={inputCls} value={mainRow.sku} maxLength={40} onChange={(e) => updateRow(mainRow.key, { sku: e.target.value.toUpperCase() })} placeholder="Auto" />
+                  </label>
+                </>
+              )}
+            </div>
+            <div className="mt-3 flex flex-wrap items-center gap-4 text-xs">
+              {mainRow && rows.length > 1 && (
+                <label className="flex cursor-pointer items-center gap-1.5 text-fg-muted">
+                  <input type="checkbox" checked={defaultKey === mainRow.key} onChange={() => setDefaultKey(mainRow.key)} />
+                  Show this colour first
+                </label>
+              )}
+              {openWarning && (
+                <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400">
+                  <AlertTriangle size={13} aria-hidden /> {openWarning}
+                </span>
+              )}
+              {!open.original && (
+                <button type="button" onClick={() => remove(open.key)} className="ml-auto flex items-center gap-1 text-fg-subtle hover:text-red-500">
+                  <Trash2 size={13} aria-hidden /> Remove
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {!main && items.length < 2 && (
+          <p className="mt-3 flex items-center gap-1.5 text-sm text-amber-600 dark:text-amber-400">
+            <AlertTriangle size={14} aria-hidden /> Add at least one more colour, or customers can&apos;t change the {part!.name.toLowerCase() || 'part'}.
+          </p>
+        )}
+
+        {offered.length > 0 && (
+          <div className="mt-4">
+            <p className="mb-2 text-[11px] uppercase tracking-[0.12em] text-fg-subtle">Add a suggested colour</p>
+            <div className="flex flex-wrap gap-1.5">
+              {offered.map((c) => (
+                <button
+                  key={c.hex}
+                  type="button"
+                  onClick={() => add(c.hex, c.name)}
+                  title={c.name}
+                  aria-label={`Add ${c.name}`}
+                  className="h-7 w-7 rounded-full border border-line/20 transition-transform hover:scale-110"
+                  style={{ backgroundColor: c.hex }}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+        {!part && <p className="mt-4 text-sm text-fg-muted">To offer more colours, tick the part that changes colour in step 1.</p>}
+      </div>
+    );
+  }
 
   const header = (
     <header className="mb-8 flex flex-wrap items-center justify-between gap-4">
@@ -495,7 +826,7 @@ export function AdminModelUploadPage() {
           </Link>
         </p>
         <h1 className="mt-2 text-3xl font-light">Upload a 3D model</h1>
-        <p className="mt-1 text-sm text-fg-muted">Add a GLB, choose the part that changes colour, and offer colour options.</p>
+        <p className="mt-1 text-sm text-fg-muted">Add a GLB, choose the parts that change colour, and offer colour options.</p>
       </div>
       <Button variant="outline" size="md" onClick={signOut} icon={<LogOut size={14} />}>
         Sign out
@@ -583,10 +914,10 @@ export function AdminModelUploadPage() {
 
               {model && (
                 <div className="mt-6">
-                  <p className={labelCls}>Which part changes colour?</p>
+                  <p className={labelCls}>Which parts change colour?</p>
                   <p className="mb-3 text-sm text-fg-muted">
                     Each material is one part of the model, biggest first. Hover a row (or tap <Eye size={12} className="inline" aria-label="show" />) to make
-                    that part glow in the preview, then tick the part customers can change: the body or fabric, not handles or legs.
+                    that part glow in the preview, then tick the parts customers can change. You choose each part&apos;s colours in step 4.
                   </p>
                   <ul className="space-y-2">
                     {model.materials.map((m) => (
@@ -726,7 +1057,17 @@ export function AdminModelUploadPage() {
                       <Undo2 size={13} aria-hidden /> Undo last split
                     </button>
                   )}
-                  {baseHex ? (
+                  {multiPart ? (
+                    <p className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-fg-muted">
+                      {parts.length} parts with their own colours (set in step 4):
+                      {parts.map((part) => (
+                        <span key={part.key} className="flex items-center gap-1.5">
+                          <span className="h-4 w-4 rounded-full border border-line/20" style={{ backgroundColor: part.baseHex }} aria-hidden />
+                          <strong className="font-medium text-fg">{part.name}</strong>
+                        </span>
+                      ))}
+                    </p>
+                  ) : baseHex ? (
                     <p className="mt-4 flex items-center gap-2 text-sm text-fg-muted">
                       Detected model colour:
                       <span className="h-4 w-4 rounded-full border border-line/20" style={{ backgroundColor: baseHex }} aria-hidden />
@@ -824,7 +1165,7 @@ export function AdminModelUploadPage() {
             </Section>
 
             {/* 3. Dimensions ------------------------------------------------- */}
-            <Section step={3} title="Dimensions" hint="Optional. Pre-filled from the model; correct them if the real product differs.">
+            <Section step={3} title="Dimensions" hint="Optional. Enter the real product size; suggestions come from the model's shape.">
               <div className="mb-4 flex items-center gap-2">
                 {(Object.keys(UNITS) as Unit[]).map((u) => (
                   <button
@@ -840,13 +1181,9 @@ export function AdminModelUploadPage() {
                     {UNITS[u].label}
                   </button>
                 ))}
-                {model?.dimensionsMm && (
-                  <button
-                    type="button"
-                    onClick={() => setDims(toUnit(scaleSize(model.dimensionsMm!, modelScale), unit))}
-                    className="ml-auto text-xs text-fg-soft underline underline-offset-4"
-                  >
-                    Use model size
+                {suggestedDims && emptyAxes.length > 0 && (
+                  <button type="button" onClick={fillSuggested} className="ml-auto text-xs text-fg-soft underline underline-offset-4">
+                    {emptyAxes.length === AXES.length ? 'Use suggested size' : 'Fill the rest with suggestions'}
                   </button>
                 )}
               </div>
@@ -856,8 +1193,8 @@ export function AdminModelUploadPage() {
                     <AlertTriangle size={15} className="mt-0.5 shrink-0" aria-hidden />
                     <span>
                       This file says the model is <strong>{describeSize(model.dimensionsMm)}</strong>, which can&apos;t be real furniture: it was
-                      exported at the wrong scale. We&apos;ve resized it to <strong>{describeSize(scaleSize(model.dimensionsMm, modelScale))}</strong>{' '}
-                      as a starting point. <strong>Type the real width (or any one side)</strong> and the others follow its shape.
+                      exported at the wrong scale. <strong>Enter the real size.</strong> Type one side and the others are suggested from the
+                      model&apos;s shape.
                     </span>
                   </p>
                   <p className="mt-2 text-xs text-fg-muted">
@@ -865,27 +1202,35 @@ export function AdminModelUploadPage() {
                   </p>
                 </div>
               )}
-              {model?.dimensionsMm && (
-                <label className="mb-3 flex cursor-pointer items-center gap-2 text-xs text-fg-muted">
-                  <input type="checkbox" checked={keepProportions} onChange={(e) => setKeepProportions(e.target.checked)} />
-                  Keep the model&apos;s proportions (change one side, the others follow)
-                </label>
-              )}
               <div className="grid grid-cols-3 gap-4">
-                {AXES.map((axis) => (
-                  <label key={axis} className="block">
-                    <span className={labelCls}>{axis}</span>
-                    <div className="relative">
-                      <input
-                        className={cn(inputCls, 'pr-10')}
-                        inputMode="decimal"
-                        value={dims[axis]}
-                        onChange={(e) => editDimension(axis, e.target.value)}
-                      />
-                      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-fg-subtle">{UNITS[unit].label}</span>
-                    </div>
-                  </label>
-                ))}
+                {AXES.map((axis) => {
+                  const hint = suggestedDims && !dims[axis].trim() ? suggestedDims[axis] : null;
+                  return (
+                    <label key={axis} className="block">
+                      <span className={labelCls}>{axis}</span>
+                      <div className="relative">
+                        <input
+                          className={cn(inputCls, 'pr-10')}
+                          inputMode="decimal"
+                          value={dims[axis]}
+                          placeholder={hint !== null ? String(hint) : undefined}
+                          onChange={(e) => editDimension(axis, e.target.value)}
+                        />
+                        <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-fg-subtle">{UNITS[unit].label}</span>
+                      </div>
+                      {hint !== null && (
+                        <button
+                          type="button"
+                          onClick={() => editDimension(axis, String(hint))}
+                          className="mt-1.5 text-xs text-fg-subtle hover:text-fg"
+                          title="Use this suggestion"
+                        >
+                          Suggested: <span className="underline underline-offset-4">{hint} {UNITS[unit].label}</span>
+                        </button>
+                      )}
+                    </label>
+                  );
+                })}
               </div>
               <FieldError msg={errors.dimensions} />
             </Section>
@@ -894,141 +1239,28 @@ export function AdminModelUploadPage() {
             <Section
               step={4}
               title="Colour options"
-              hint={tint ? 'The first one is the model’s own colour. Add others from the suggestions or pick a custom colour.' : undefined}
+              hint={
+                multiPart
+                  ? 'Each part gets its own colours. The main part’s colours are the catalogue options (each with its own SKU); customers can mix them with the other parts’ colours.'
+                  : tint
+                    ? 'The first is the model’s own colour. Click a colour to edit it, or add more from the suggestions.'
+                    : undefined
+              }
             >
               {!model ? (
                 <p className="text-sm text-fg-muted">Upload a model first.</p>
               ) : (
-                <>
-                  <ul className="space-y-3">
-                    {rows.map((r) => {
-                      const hex = rowHex(r);
-                      const warning = rowWarning(r);
-                      return (
-                        <li
-                          key={r.key}
-                          onClick={() => setPreviewKey(r.key)}
-                          className={cn(
-                            'rounded-2xl border p-4 transition-colors',
-                            previewRow?.key === r.key ? 'border-fg/50 bg-fg/[0.03]' : 'border-line/10',
-                          )}
-                        >
-                          <div className="flex flex-wrap items-end gap-3">
-                            {tint && hex && (
-                              <label className="relative block h-10 w-10 shrink-0 cursor-pointer overflow-hidden rounded-full border border-line/20" title={r.original ? 'Detected from the model' : 'Pick a colour'}>
-                                <span className="absolute inset-0" style={{ backgroundColor: hex }} />
-                                {!r.original && (
-                                  <input
-                                    type="color"
-                                    value={isHex(r.hex) ? r.hex : '#000000'}
-                                    onChange={(e) => updateRow(r.key, { hex: e.target.value.toUpperCase() })}
-                                    className="absolute inset-0 cursor-pointer opacity-0"
-                                    aria-label={`Colour for ${r.name || 'this option'}`}
-                                  />
-                                )}
-                              </label>
-                            )}
-                            <label className="min-w-[140px] flex-1">
-                              <span className={labelCls}>
-                                Colour name *{r.original && <span className="ml-2 normal-case tracking-normal text-fg-subtle">(original)</span>}
-                              </span>
-                              <input className={inputCls} value={r.name} maxLength={80} onChange={(e) => updateRow(r.key, { name: e.target.value, autoName: false })} />
-                            </label>
-                            {tint && !r.original && (
-                              <label className="w-28">
-                                <span className={labelCls}>Hex</span>
-                                <input className={inputCls} value={r.hex} maxLength={7} onChange={(e) => updateRow(r.key, { hex: e.target.value.trim().toUpperCase() })} />
-                              </label>
-                            )}
-                            <label className="w-36">
-                              <span className={labelCls}>Fabric</span>
-                              <input className={inputCls} list="fabric-options" value={r.fabric} maxLength={80} onChange={(e) => updateRow(r.key, { fabric: e.target.value })} placeholder="Velvet" />
-                            </label>
-                            <label className="w-40">
-                              <span className={labelCls}>SKU</span>
-                              <input className={inputCls} value={r.sku} maxLength={40} onChange={(e) => updateRow(r.key, { sku: e.target.value.toUpperCase() })} placeholder="Auto" />
-                            </label>
-                          </div>
-                          <div className="mt-3 flex items-center gap-4 text-xs">
-                            <label className="flex cursor-pointer items-center gap-1.5 text-fg-muted">
-                              <input type="radio" name="default-colour" checked={defaultKey === r.key} onChange={() => setDefaultKey(r.key)} />
-                              Shown first
-                            </label>
-                            {warning && (
-                              <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400">
-                                <AlertTriangle size={13} aria-hidden /> {warning}
-                              </span>
-                            )}
-                            {!r.original && (
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  removeRow(r.key);
-                                }}
-                                className="ml-auto flex items-center gap-1 text-fg-subtle hover:text-red-500"
-                              >
-                                <Trash2 size={13} aria-hidden /> Remove
-                              </button>
-                            )}
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                  <datalist id="fabric-options">
-                    {FABRICS.map((f) => (
-                      <option key={f} value={f} />
-                    ))}
-                  </datalist>
-
-                  {tint ? (
-                    <div className="mt-6">
-                      <p className={labelCls}>Suggested colours</p>
-                      <p className="mb-3 text-xs text-fg-muted">
-                        Colours close to the model’s own {baseHex && nameColour(baseHex).toLowerCase()}, to ones you’ve added, or that this texture can’t show are left out.
-                      </p>
-                      <div className="space-y-3">
-                        {[...new Set(suggestions.map((c) => c.group))].map((group) => (
-                          <div key={group}>
-                            <p className="mb-1.5 text-[11px] uppercase tracking-[0.12em] text-fg-subtle">{group}</p>
-                            <div className="flex flex-wrap gap-2">
-                              {suggestions
-                                .filter((c) => c.group === group)
-                                .map((c) => (
-                                  <button
-                                    key={c.hex}
-                                    type="button"
-                                    onClick={() => addColour(c.hex, c.name)}
-                                    className="flex items-center gap-2 rounded-full border border-line/15 py-1.5 pl-1.5 pr-3 text-xs text-fg-muted transition-colors hover:border-fg hover:text-fg"
-                                  >
-                                    <span className="h-5 w-5 rounded-full border border-line/20" style={{ backgroundColor: c.hex }} aria-hidden />
-                                    {c.name}
-                                  </button>
-                                ))}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          onClick={() => addColour(suggestions[0]?.hex ?? '#808080', '')}
-                          className="flex items-center gap-1.5 rounded-full border border-dashed border-line/30 px-3 py-1.5 text-xs text-fg-muted hover:border-fg hover:text-fg"
-                        >
-                          <Plus size={13} aria-hidden /> Custom colour
-                        </button>
-                      </div>
-                      {suggestions.length === 0 && (
-                        <p className="mt-3 text-xs text-fg-muted">No more palette colours fit this model. You can still add a custom one.</p>
-                      )}
-                    </div>
-                  ) : (
-                    <p className="mt-4 text-sm text-fg-muted">To offer more colours, tick the part that changes colour in step 1.</p>
-                  )}
-                </>
+                <div className="space-y-4">
+                  {(parts.length ? parts : [null]).map((part, i) => renderColourCard(part, i))}
+                </div>
               )}
+              <datalist id="fabric-options">
+                {FABRICS.map((f) => (
+                  <option key={f} value={f} />
+                ))}
+              </datalist>
               <FieldError msg={errors.colours} />
+              <FieldError msg={errors.parts} />
             </Section>
 
             {formError && (
@@ -1062,26 +1294,55 @@ export function AdminModelUploadPage() {
                 )}
               </div>
               {tint && rows.length > 0 && (
-                <div className="flex flex-wrap items-center gap-3" role="radiogroup" aria-label="Preview colour">
-                  {rows.map((r) => {
-                    const hex = rowHex(r);
+                <div className="space-y-3">
+                  <div className="flex flex-wrap items-center gap-3" role="radiogroup" aria-label={multiPart ? `Preview colour for ${parts[0].name}` : 'Preview colour'}>
+                    {multiPart && <span className="w-24 truncate text-xs uppercase tracking-[0.12em] text-fg-subtle">{parts[0].name}</span>}
+                    {rows.map((r) => {
+                      const hex = rowHex(r);
+                      return (
+                        <button
+                          key={r.key}
+                          type="button"
+                          role="radio"
+                          aria-checked={previewRow?.key === r.key}
+                          title={r.name}
+                          onClick={() => setPreviewKey(r.key)}
+                          className={cn(
+                            'h-8 w-8 rounded-full border border-line/20 transition-all',
+                            previewRow?.key === r.key ? 'scale-110 ring-2 ring-fg ring-offset-2 ring-offset-surface' : 'hover:scale-105',
+                          )}
+                          style={{ backgroundColor: hex && isHex(hex) ? hex : 'transparent' }}
+                        />
+                      );
+                    })}
+                    <span className="text-sm text-fg-muted">{previewRow?.name}</span>
+                  </div>
+                  {parts.slice(1).map((part) => {
+                    const colours = partColours(part);
+                    const current = colours.find((c) => c.key === previewPicks[part.key]) ?? colours[0];
                     return (
-                      <button
-                        key={r.key}
-                        type="button"
-                        role="radio"
-                        aria-checked={previewRow?.key === r.key}
-                        title={r.name}
-                        onClick={() => setPreviewKey(r.key)}
-                        className={cn(
-                          'h-8 w-8 rounded-full border border-line/20 transition-all',
-                          previewRow?.key === r.key ? 'scale-110 ring-2 ring-fg ring-offset-2 ring-offset-surface' : 'hover:scale-105',
-                        )}
-                        style={{ backgroundColor: hex && isHex(hex) ? hex : 'transparent' }}
-                      />
+                      <div key={part.key} className="flex flex-wrap items-center gap-3" role="radiogroup" aria-label={`Preview colour for ${part.name}`}>
+                        <span className="w-24 truncate text-xs uppercase tracking-[0.12em] text-fg-subtle">{part.name}</span>
+                        {colours.map((c) => (
+                          <button
+                            key={c.key}
+                            type="button"
+                            role="radio"
+                            aria-checked={current.key === c.key}
+                            title={c.name}
+                            onClick={() => setPreviewPicks((picks) => ({ ...picks, [part.key]: c.key }))}
+                            className={cn(
+                              'h-8 w-8 rounded-full border border-line/20 transition-all',
+                              current.key === c.key ? 'scale-110 ring-2 ring-fg ring-offset-2 ring-offset-surface' : 'hover:scale-105',
+                            )}
+                            style={{ backgroundColor: isHex(c.hex) ? c.hex : 'transparent' }}
+                          />
+                        ))}
+                        <span className="text-sm text-fg-muted">{current.name}</span>
+                      </div>
                     );
                   })}
-                  <span className="text-sm text-fg-muted">{previewRow?.name}</span>
+                  {multiPart && <p className="text-xs text-fg-subtle">This is how customers will mix the parts.</p>}
                 </div>
               )}
             </div>

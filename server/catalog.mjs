@@ -51,7 +51,12 @@ function toPublic(row) {
       sizeBytes: row.size_bytes,
       version: row.version,
       dimensionsM: size ? { width: size[0], height: size[1], depth: size[2] } : null,
-      tint: row.tint ? { materials: row.tint.materials.map(({ index, texAvg, base, sheen }) => ({ index, texAvg, base, sheen })) } : null,
+      tint: row.tint
+        ? {
+            materials: row.tint.materials.map(({ index, texAvg, base, sheen }) => ({ index, texAvg, base, sheen })),
+            ...(row.tint.parts && { parts: row.tint.parts.map(({ name, materials, colours }) => ({ name, materials, colours })) }),
+          }
+        : null,
     },
   };
 }

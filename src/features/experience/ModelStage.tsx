@@ -1,6 +1,6 @@
 import ProductArExperience from './ProductArExperience';
 import type { Variant } from '@/lib/api';
-import { recolorOf } from '@/lib/color';
+import { recolorOf, type PartPicks } from '@/lib/color';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 
 /**
@@ -9,10 +9,13 @@ import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
  */
 export function ModelStage({
   variant,
+  picks,
   className = '',
   showArUnavailable,
 }: {
   variant: Variant;
+  /** Colours chosen for the product's extra parts (see usePartPicks). */
+  picks?: PartPicks;
   className?: string;
   /** Off where the page offers another way into AR (a QR), so desktops aren't told "AR unavailable". */
   showArUnavailable?: boolean;
@@ -25,7 +28,7 @@ export function ModelStage({
           key={variant.model.url}
           src={variant.model.url}
           alt={`3D model of ${variant.product.name}, ${variant.name}`}
-          recolor={recolorOf(variant)}
+          recolor={recolorOf(variant, picks)}
           showArUnavailable={showArUnavailable}
         />
       </ErrorBoundary>

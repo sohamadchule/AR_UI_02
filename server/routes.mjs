@@ -50,14 +50,21 @@ api.get('/variants/:id/model', wrap(async (req, res) => {
   sendGlb(req, res, file, Boolean(req.query.v));
 }));
 
-// GET /api/variants/:id/share: the exact URL the QR encodes (reachable from a phone).
+/** The page a QR opens, carrying `?mix=` (colours picked for the extra parts) when it is well formed. */
+const MIX = /^[1-9]-[0-9A-Fa-f]{6}(\.[1-9]-[0-9A-Fa-f]{6}){0,7}$/;
+const viewUrlFor = (req, variant) => {
+  const mix = typeof req.query.mix === 'string' && MIX.test(req.query.mix) ? req.query.mix.toUpperCase() : null;
+  return `${buildViewUrl(req, variant.id)}${mix ? `?mix=${mix}` : ''}`;
+};
+
+// GET /api/variants/:id/share?mix=: the exact URL the QR encodes (reachable from a phone).
 api.get('/variants/:id/share', wrap(async (req, res) => {
   const variant = await getVariant(req.params.id);
   if (!variant) return notFound(res, 'Variant not found');
-  res.json({ url: buildViewUrl(req, variant.id) });
+  res.json({ url: viewUrlFor(req, variant) });
 }));
 
-// GET /api/variants/:id/qr?format=png|svg&download=1
+// GET /api/variants/:id/qr?format=png|svg&download=1&mix=
 // Encodes <base>/view/<id>: never the model file, so a replaced model keeps the same QR.
 api.get('/variants/:id/qr', wrap(async (req, res) => {
   const variant = await getVariant(req.params.id);
@@ -66,7 +73,7 @@ api.get('/variants/:id/qr', wrap(async (req, res) => {
   const format = String(req.query.format ?? 'png').toLowerCase();
   if (format !== 'png' && format !== 'svg') return res.status(400).json({ error: 'format must be png or svg' });
 
-  const target = buildViewUrl(req, variant.id);
+  const target = viewUrlFor(req, variant);
   const options = { margin: 2, width: 512, errorCorrectionLevel: 'M' };
   const body = format === 'svg'
     ? await QRCode.toString(target, { ...options, type: 'svg' })

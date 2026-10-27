@@ -228,9 +228,12 @@ export function analyzeMaterials(buf) {
 
 /**
  * The `model_asset.tint` value for the chosen material indices, or null for none.
+ * With `parts` (two or more, already validated to split `indices` between them) the
+ * materials change colour part by part: [{ name, materials: [index…], colours: [{ name, hex }] }],
+ * the first part following the variant's colour.
  * Throws when an index is not a rendered material of this model.
  */
-export function buildTint(materials, indices) {
+export function buildTint(materials, indices, parts = null) {
   if (!indices?.length) return null;
   const byIndex = new Map(materials.map((m) => [m.index, m]));
   const chosen = [...new Set(indices)].map((i) => {
@@ -238,5 +241,7 @@ export function buildTint(materials, indices) {
     if (!m) throw new Error(`Material ${i} is not part of this model.`);
     return { index: m.index, name: m.name, texAvg: m.texAvg, base: m.base, sheen: m.sheen };
   });
-  return { materials: chosen, baseHex: byIndex.get(chosen[0].index).hex };
+  // The main part's own colour: what a variant without a chosen colour shows.
+  const main = parts?.length > 1 ? parts[0].materials[0] : chosen[0].index;
+  return { materials: chosen, baseHex: byIndex.get(main).hex, ...(parts?.length > 1 && { parts }) };
 }

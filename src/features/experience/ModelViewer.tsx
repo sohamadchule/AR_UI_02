@@ -33,8 +33,8 @@ export interface ModelViewerProps {
   showArButton?: boolean;
   /** Notified when AR availability is determined (after the model loads). */
   onArAvailabilityChange?: (supported: boolean) => void;
-  /** Show the model's recolourable materials in this colour (applied without reloading). */
-  recolor?: Recolor | null;
+  /** Colours for the model's recolourable materials, part by part (applied without reloading). */
+  recolor?: readonly Recolor[] | null;
   /** glTF material index to make glow, so a person can see which part it is; null for none. */
   highlight?: number | null;
   /** Stop the scroll wheel zooming, so it scrolls the page instead (pinch still works on touch). */
@@ -49,11 +49,11 @@ export interface ModelViewerProps {
  * Set each tint material's base colour for `recolor`, fading from the current
  * colour when `fadeMs` > 0. Returns a function that cancels the fade.
  */
-function applyRecolor(el: ModelViewerElement, recolor: Recolor, fadeMs: number): () => void {
+function applyRecolor(el: ModelViewerElement, recolor: readonly Recolor[], fadeMs: number): () => void {
   const materials = el.model?.materials ?? [];
   let steps;
   try {
-    steps = recolorSteps(materials, recolor);
+    steps = recolor.flatMap((r) => recolorSteps(materials, r));
   } catch (err) {
     console.error("Recolour failed", err);
     return () => {};
@@ -172,7 +172,7 @@ export default function ModelViewer({
     if (!el || !defined) return;
 
     const onLoad = () => {
-      if (recolorRef.current) applyRecolor(el, recolorRef.current, 0);
+      if (recolorRef.current?.length) applyRecolor(el, recolorRef.current, 0);
       setStatus("loaded");
       if (ar) {
         const supported = Boolean(el.canActivateAR);
@@ -204,14 +204,15 @@ export default function ModelViewer({
     };
   }, [defined, src, ar, onArAvailabilityChange]);
 
-  // Colour switches on an already-loaded model: fade, no reload.
-  const recolorHex = recolor?.hex;
-  const recolorTint = recolor?.tint;
+  // Colour switches on an already-loaded model: fade, no reload. Callers build a fresh
+  // list every render, so the effect follows what it says (colour per material), not its identity.
+  const recolorKey = (recolor ?? []).map((r) => `${r.hex}@${r.tint.materials.map((m) => m.index).join(",")}`).join("|");
   useEffect(() => {
     const el = ref.current;
-    if (!el || status !== "loaded" || !recolorHex || !recolorTint) return;
-    return applyRecolor(el, { hex: recolorHex, tint: recolorTint }, RECOLOR_MS);
-  }, [status, recolorHex, recolorTint]);
+    const current = recolorRef.current;
+    if (!el || status !== "loaded" || !current?.length) return;
+    return applyRecolor(el, current, RECOLOR_MS);
+  }, [status, recolorKey]);
 
   // Pulse the highlighted material's glow, then put its own emissive colour back.
   useEffect(() => {

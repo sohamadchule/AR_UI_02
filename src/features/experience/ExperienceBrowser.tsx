@@ -3,6 +3,8 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { ArrowUpRight, Search } from 'lucide-react';
 import { fetchVariants, viewPath, type Variant } from '@/lib/api';
 import { useAsync } from '@/hooks/useAsync';
+import { usePartPicks } from '@/hooks/usePartPicks';
+import { encodePicks } from '@/lib/color';
 import { cn } from '@/lib/cn';
 import { displayDimensions, formatLength } from '@/lib/units';
 import { ModelStage } from './ModelStage';
@@ -29,6 +31,7 @@ const pill = 'flex-none whitespace-nowrap rounded-full border px-4 py-1.5 text-s
 export function ExperienceBrowser() {
   const catalog = useAsync(fetchVariants, 'variants');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const { picksFor, pick } = usePartPicks();
   const [params, setParams] = useSearchParams();
   const [query, setQuery] = useState('');
 
@@ -65,6 +68,8 @@ export function ExperienceBrowser() {
         const active = catalog.data.find((v) => v.id === selectedId) ?? defaultOf(inCategory[0] ?? products[0]);
         const siblings = products.find((g) => g[0].product.id === active.product.id) ?? [active];
         const size = displayDimensions(active);
+        const picks = picksFor(active.product.id);
+        const mix = encodePicks(active.model.tint, picks);
 
         /** Switch tab, and put that category's first piece on the stage. */
         function pickCategory(slug: string) {
@@ -119,8 +124,14 @@ export function ExperienceBrowser() {
             <div className="grid gap-10 lg:grid-cols-12">
               <div className="space-y-10 lg:col-span-7">
                 <div className="space-y-5">
-                  <ModelStage variant={active} className="h-[460px] md:h-[600px]" />
-                  <ColourSwatches variants={siblings} activeId={active.id} onSelect={setSelectedId} />
+                  <ModelStage variant={active} picks={picks} className="h-[460px] md:h-[600px]" />
+                  <ColourSwatches
+                    variants={siblings}
+                    activeId={active.id}
+                    onSelect={setSelectedId}
+                    picks={picks}
+                    onPick={(part, hex) => pick(active.product.id, part, hex)}
+                  />
                 </div>
 
                 <div className="grid gap-6 sm:grid-cols-2">
@@ -128,7 +139,7 @@ export function ExperienceBrowser() {
                     <h2 className="text-2xl font-light tracking-tight text-fg">{active.product.name}</h2>
                     <p className="mt-2 text-sm leading-relaxed text-fg-muted">{active.product.description}</p>
                     <Link
-                      to={viewPath(active.id)}
+                      to={`${viewPath(active.id)}${mix ? `?mix=${mix}` : ''}`}
                       className="mt-4 inline-flex items-center gap-1 text-sm text-fg-soft transition-colors hover:text-fg"
                     >
                       Open public page <ArrowUpRight size={14} aria-hidden />
@@ -152,7 +163,7 @@ export function ExperienceBrowser() {
 
                 {/* Right under the product it encodes, not below the whole catalogue list. */}
                 <div className="rounded-3xl border border-line/10 p-6">
-                  <QrPanel variant={active} />
+                  <QrPanel variant={active} picks={picks} />
                 </div>
               </div>
 

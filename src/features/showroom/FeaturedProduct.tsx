@@ -8,6 +8,7 @@ import { recolorOf } from '@/lib/color';
 import ProductArExperience from '@/features/experience/ProductArExperience';
 import { ColourSwatches } from '@/features/experience/ColourSwatches';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
+import { usePartPicks } from '@/hooks/usePartPicks';
 import { Reveal } from '@/components/ui/Reveal';
 import { dimensionsCm, formatInr, type StoreProduct } from '@/features/store/catalog';
 import { ProductPicture } from './FurnitureCard';
@@ -21,6 +22,8 @@ import { isArDevice, useNearViewport } from './scroll';
  */
 export function FeaturedProduct({ brand, showroom, product }: { brand: Brand; showroom: Showroom; product: StoreProduct }) {
   const [variantId, setVariantId] = useState(product.variants[0]?.id ?? '');
+  const { picksFor, pick } = usePartPicks();
+  const picks = picksFor(product.slug);
   const [qrOpen, setQrOpen] = useState(false);
   const { ref, near } = useNearViewport<HTMLDivElement>('400px');
   const stageRef = useRef<HTMLDivElement>(null);
@@ -71,7 +74,7 @@ export function FeaturedProduct({ brand, showroom, product }: { brand: Brand; sh
                 <ProductArExperience
                   src={variant.model.url}
                   alt={`3D model of the ${product.name} in ${variant.name}`}
-                  recolor={recolorOf(variant)}
+                  recolor={recolorOf(variant, picks)}
                   autoRotate
                   disableZoom
                   showArUnavailable={false}
@@ -101,11 +104,14 @@ export function FeaturedProduct({ brand, showroom, product }: { brand: Brand; sh
             </dl>
           )}
 
-          {product.variants.length > 1 && (
-            <div className="mt-8">
-              <ColourSwatches variants={product.variants} activeId={variant.id} onSelect={setVariantId} />
-            </div>
-          )}
+          <ColourSwatches
+            className="mt-8"
+            variants={product.variants}
+            activeId={variant.id}
+            onSelect={setVariantId}
+            picks={picks}
+            onPick={(part, hex) => pick(product.slug, part, hex)}
+          />
 
           {product.priceInr !== null && (
             <p className="mt-8 font-display text-3xl tabular-nums">
@@ -143,7 +149,9 @@ export function FeaturedProduct({ brand, showroom, product }: { brand: Brand; sh
         </Reveal>
       </div>
 
-      {qrOpen && <ViewerDialog brand={brand} product={product} mode="room" initialVariantId={variant.id} onClose={() => setQrOpen(false)} />}
+      {qrOpen && (
+        <ViewerDialog brand={brand} product={product} mode="room" initialVariantId={variant.id} initialPicks={picks} onClose={() => setQrOpen(false)} />
+      )}
     </section>
   );
 }

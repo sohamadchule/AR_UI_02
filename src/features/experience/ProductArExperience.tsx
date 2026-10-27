@@ -13,8 +13,8 @@ export interface ProductArExperienceProps {
   src: string;
   /** Accessible description of the model. */
   alt: string;
-  /** Colour for the model's recolourable materials, in 3D and in AR. */
-  recolor?: Recolor | null;
+  /** Colours for the model's recolourable materials, part by part, in 3D and in AR. */
+  recolor?: readonly Recolor[] | null;
   /** Passed through to ModelViewer. */
   autoRotate?: boolean;
   disableZoom?: boolean;

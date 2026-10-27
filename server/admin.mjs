@@ -18,6 +18,7 @@ const HEX = /^#[0-9A-Fa-f]{6}$/;
 const SHA = /^[0-9a-f]{64}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_COLOURS = 24;
+const MAX_PARTS = 8;
 
 const text = (v) => (typeof v === 'string' && v.trim() ? v.trim() : null);
 const slugify = (s) => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
@@ -107,6 +108,7 @@ function validateProduct(body = {}) {
     sha256: text(body.model?.sha256),
     filename: text(body.model?.filename) ?? 'model.glb',
     tintMaterials: Array.isArray(body.model?.tintMaterials) ? body.model.tintMaterials : [],
+    parts: Array.isArray(body.model?.parts) ? body.model.parts : [],
     unit: body.dimensions?.unit ?? 'mm',
     dims: {},
     colours: Array.isArray(body.colours) ? body.colours : [],
@@ -119,6 +121,11 @@ function validateProduct(body = {}) {
   else if (value.newCategory && (value.newCategory.length > 60 || !slugify(value.newCategory))) errors.category = 'Category name is invalid.';
   if (!value.sha256 || !SHA.test(value.sha256)) errors.model = 'Upload a GLB model first.';
   if (!value.tintMaterials.every(Number.isInteger)) errors.model = 'Invalid recolourable material list.';
+  else if (value.parts.length > 1) {
+    const { parts, error } = validateParts(value.parts, value.tintMaterials);
+    if (error) errors.parts = error;
+    else value.parts = parts;
+  } else value.parts = null;
 
   if (!(value.unit in MM_PER)) errors.dimensions = 'Unit must be mm, cm or in.';
   else {
@@ -158,6 +165,47 @@ function validateProduct(body = {}) {
   return Object.keys(errors).length ? { errors } : { value };
 }
 
+/**
+ * Separately coloured parts: each a name, its share of the recolourable materials
+ * (together exactly `tintMaterials`, no material in two parts) and, after the first
+ * part, the colours customers may pick for it. Returns { parts } or { error }.
+ */
+function validateParts(raw, tintMaterials) {
+  if (raw.length > MAX_PARTS) return { error: `At most ${MAX_PARTS} parts.` };
+  const tinted = new Set(tintMaterials);
+  const used = new Set();
+  const names = new Set();
+  const parts = [];
+  for (const [i, p] of raw.entries()) {
+    const name = text(p?.name);
+    if (!name || name.length > 40) return { error: `Part ${i + 1} needs a name (max 40).` };
+    if (names.has(name.toLowerCase())) return { error: `Part "${name}" is listed twice.` };
+    names.add(name.toLowerCase());
+    const materials = Array.isArray(p?.materials) ? p.materials : [];
+    if (!materials.length || !materials.every((m) => Number.isInteger(m) && tinted.has(m) && !used.has(m))) {
+      return { error: `Part "${name}": its materials are invalid.` };
+    }
+    materials.forEach((m) => used.add(m));
+    let colours = [];
+    if (i > 0) {
+      const list = Array.isArray(p?.colours) ? p.colours : [];
+      if (!list.length || list.length > MAX_COLOURS) return { error: `Part "${name}": add 1 to ${MAX_COLOURS} colours.` };
+      const seen = new Set();
+      for (const c of list) {
+        const colour = { name: text(c?.name), hex: text(c?.hex)?.toUpperCase() ?? '' };
+        if (!colour.name || colour.name.length > 80) return { error: `Part "${name}": every colour needs a name (max 80).` };
+        if (!HEX.test(colour.hex)) return { error: `Part "${name}": colour must look like #1E4FD8.` };
+        if (seen.has(colour.name.toLowerCase())) return { error: `Part "${name}": colour "${colour.name}" is listed twice.` };
+        seen.add(colour.name.toLowerCase());
+        colours.push(colour);
+      }
+    }
+    parts.push({ name, materials, colours });
+  }
+  if (used.size !== tinted.size) return { error: 'Every recolourable material must belong to a part.' };
+  return { parts };
+}
+
 /** `base`, or `base-2`, `base-3`… whichever is free in `taken` (a Set, updated). */
 function firstFree(base, taken) {
   let candidate = base;
@@ -178,7 +226,7 @@ admin.post('/products', express.json({ limit: '64kb' }), wrap(async (req, res) =
   const meta = glbMeta(blob.content);
   let tint;
   try {
-    tint = buildTint(analyzeMaterials(blob.content), v.tintMaterials);
+    tint = buildTint(analyzeMaterials(blob.content), v.tintMaterials, v.parts);
   } catch (err) {
     return res.status(400).json({ error: err.message, errors: { model: err.message } });
   }

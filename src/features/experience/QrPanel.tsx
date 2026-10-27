@@ -1,15 +1,20 @@
 import { useState } from 'react';
 import { Check, Copy, ExternalLink } from 'lucide-react';
 import { fetchShareUrl, qrUrl, viewPath, type Variant } from '@/lib/api';
+import { encodePicks, type PartPicks } from '@/lib/color';
 import { useAsync } from '@/hooks/useAsync';
 import { buttonClasses } from '@/components/ui/Button';
 
-/** QR code for a variant's public page, with the URL it encodes and download links. */
-export function QrPanel({ variant }: { variant: Variant }) {
+/**
+ * QR code for a variant's public page, with the URL it encodes and download links.
+ * Colours picked for the extra parts travel with it, so the phone opens the same mix.
+ */
+export function QrPanel({ variant, picks = {} }: { variant: Variant; picks?: PartPicks }) {
   const [copied, setCopied] = useState(false);
+  const mix = encodePicks(variant.model.tint, picks);
   // The server decides the host (PUBLIC_BASE_URL, tunnel, or LAN IP) so the phone can reach it.
-  const shared = useAsync(() => fetchShareUrl(variant.id), variant.id);
-  const publicUrl = shared.status === 'ready' ? shared.data : `${window.location.origin}${viewPath(variant.id)}`;
+  const shared = useAsync(() => fetchShareUrl(variant.id, mix), `${variant.id}?${mix}`);
+  const publicUrl = shared.status === 'ready' ? shared.data : `${window.location.origin}${viewPath(variant.id)}${mix ? `?mix=${mix}` : ''}`;
 
   async function copyUrl() {
     try {
@@ -24,9 +29,9 @@ export function QrPanel({ variant }: { variant: Variant }) {
   return (
     <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
       <img
-        // Re-keyed per variant so the old code never lingers while the new one loads.
-        key={variant.id}
-        src={qrUrl(variant.id)}
+        // Re-keyed per variant and mix so the old code never lingers while the new one loads.
+        key={`${variant.id}?${mix}`}
+        src={qrUrl(variant.id, { mix })}
         alt={`QR code that opens ${variant.product.name} (${variant.name}) in 3D`}
         width={176}
         height={176}
@@ -61,10 +66,10 @@ export function QrPanel({ variant }: { variant: Variant }) {
         </div>
 
         <div className="flex flex-wrap gap-3">
-          <a href={qrUrl(variant.id, { download: true })} className={buttonClasses('primary', 'md')}>
+          <a href={qrUrl(variant.id, { download: true, mix })} className={buttonClasses('primary', 'md')}>
             Download PNG
           </a>
-          <a href={qrUrl(variant.id, { format: 'svg', download: true })} className={buttonClasses('outline', 'md')}>
+          <a href={qrUrl(variant.id, { format: 'svg', download: true, mix })} className={buttonClasses('outline', 'md')}>
             Download SVG
           </a>
         </div>

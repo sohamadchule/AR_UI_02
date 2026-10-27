@@ -14,7 +14,7 @@ export interface ArSceneProps {
   /** Called once the session has ended, for any reason. */
   onEnd: () => void;
   /** Colour to show the model's recolourable materials in, if any. */
-  recolor?: Recolor | null;
+  recolor?: readonly Recolor[] | null;
 }
 
 /** Pinch limits, relative to the model's authored (real-world) size. */
@@ -140,9 +140,10 @@ export default function ArScene({ src, session, onEnd, recolor }: ArSceneProps) 
         (gltf) => {
           if (disposed) return;
           const model = gltf.scene;
-          // glTF material index → the tint data for it, when this variant recolours it.
-          const colour = recolorRef.current;
-          const tinted = new Map<number, TintMaterial>((colour?.tint.materials ?? []).map((m) => [m.index, m]));
+          // glTF material index → its tint data and colour, when this variant recolours it.
+          const tinted = new Map<number, { m: TintMaterial; hex: string }>(
+            (recolorRef.current ?? []).flatMap((r) => r.tint.materials.map((m) => [m.index, { m, hex: r.hex }] as const)),
+          );
           model.traverse((child) => {
             const mesh = child as import("three").Mesh;
             if (mesh.isMesh) {
@@ -150,11 +151,12 @@ export default function ArScene({ src, session, onEnd, recolor }: ArSceneProps) 
               mesh.receiveShadow = true;
               for (const material of [mesh.material].flat()) {
                 const index = gltf.parser.associations.get(material)?.materials;
-                const m = index === undefined ? undefined : tinted.get(index);
-                if (!m || !colour) continue;
+                const entry = index === undefined ? undefined : tinted.get(index);
+                if (!entry) continue;
+                const { m, hex } = entry;
                 const physical = material as import("three").MeshPhysicalMaterial;
-                physical.color.setRGB(...tintFactor(colour.hex, m.texAvg));
-                const sheen = sheenFactor(colour.hex, m);
+                physical.color.setRGB(...tintFactor(hex, m.texAvg));
+                const sheen = sheenFactor(hex, m);
                 if (sheen && physical.sheenColor) physical.sheenColor.setRGB(...sheen);
               }
             }
