@@ -249,3 +249,101 @@ admin.post('/products', express.json({ limit: '64kb' }), wrap(async (req, res) =
     client.release();
   }
 }));
+
+// GET /api/admin/products: every product, drafts included, with its colours and model size.
+admin.get('/products', wrap(async (_req, res) => {
+  const { rows } = await pool.query(`
+    SELECT p.id, p.slug, p.name, p.status, p.created_at AS "createdAt", c.name AS category,
+           coalesce(json_agg(json_build_object(
+             'id', v.id, 'name', v.name, 'sku', v.sku, 'colorHex', v.color_hex, 'isDefault', v.is_default
+           ) ORDER BY v.sort_order) FILTER (WHERE v.id IS NOT NULL), '[]') AS variants,
+           (SELECT coalesce(sum(b.size_bytes), 0)::bigint FROM model_blob b
+             WHERE b.sha256 IN (SELECT a.blob_sha256 FROM model_asset a
+                                  JOIN product_variant pv ON pv.id = a.variant_id
+                                 WHERE pv.product_id = p.id AND a.is_current)) AS "modelBytes"
+      FROM product p
+      JOIN category c ON c.id = p.category_id
+      LEFT JOIN product_variant v ON v.product_id = p.id
+     GROUP BY p.id, c.name
+     ORDER BY p.created_at DESC`);
+  res.json({ products: rows.map((r) => ({ ...r, modelBytes: Number(r.modelBytes) })) });
+}));
+
+/**
+ * Remove the given GLBs if no model record uses them any more. Blobs are shared
+ * (colours of a product, and identical uploads), so a delete only frees what it orphaned.
+ */
+async function dropOrphanBlobs(client, shas) {
+  if (!shas.length) return 0;
+  const { rowCount } = await client.query(
+    `DELETE FROM model_blob b WHERE b.sha256 = ANY($1)
+       AND NOT EXISTS (SELECT 1 FROM model_asset a WHERE a.blob_sha256 = b.sha256)`,
+    [shas],
+  );
+  return rowCount;
+}
+
+/** Runs `fn` in a transaction; returns its result, or rolls back and rethrows. */
+async function inTransaction(fn) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await fn(client);
+    await client.query(result?.rollback ? 'ROLLBACK' : 'COMMIT');
+    return result;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+// DELETE /api/admin/products/:id: the product, all its colours, their model history,
+// and any GLB that nothing else uses. QR codes for its colours stop resolving.
+admin.delete('/products/:id', wrap(async (req, res) => {
+  if (!UUID.test(req.params.id)) return res.status(404).json({ error: 'Product not found' });
+  const result = await inTransaction(async (client) => {
+    const { rows: blobs } = await client.query(
+      `SELECT DISTINCT a.blob_sha256 AS sha FROM model_asset a
+         JOIN product_variant v ON v.id = a.variant_id WHERE v.product_id = $1`,
+      [req.params.id],
+    );
+    const { rows: [product] } = await client.query('DELETE FROM product WHERE id = $1 RETURNING name', [req.params.id]);
+    if (!product) return { rollback: true, notFound: true };
+    return { name: product.name, removedModels: await dropOrphanBlobs(client, blobs.map((b) => b.sha)) };
+  });
+  if (result.notFound) return res.status(404).json({ error: 'Product not found' });
+  res.json({ ok: true, ...result });
+}));
+
+// DELETE /api/admin/variants/:id: one colour of a product. A product keeps at least one
+// colour (delete the product instead); if the default goes, the next colour becomes default.
+admin.delete('/variants/:id', wrap(async (req, res) => {
+  if (!UUID.test(req.params.id)) return res.status(404).json({ error: 'Colour not found' });
+  const result = await inTransaction(async (client) => {
+    const { rows: [variant] } = await client.query(
+      'SELECT product_id, is_default FROM product_variant WHERE id = $1 FOR UPDATE',
+      [req.params.id],
+    );
+    if (!variant) return { rollback: true, status: 404, error: 'Colour not found' };
+    const { rows: [{ count }] } = await client.query(
+      'SELECT count(*)::int AS count FROM product_variant WHERE product_id = $1',
+      [variant.product_id],
+    );
+    if (count <= 1) return { rollback: true, status: 409, error: 'This is the product’s only colour. Delete the whole product instead.' };
+
+    const { rows: blobs } = await client.query('SELECT DISTINCT blob_sha256 AS sha FROM model_asset WHERE variant_id = $1', [req.params.id]);
+    await client.query('DELETE FROM product_variant WHERE id = $1', [req.params.id]);
+    if (variant.is_default) {
+      await client.query(
+        `UPDATE product_variant SET is_default = true
+          WHERE id = (SELECT id FROM product_variant WHERE product_id = $1 ORDER BY sort_order, created_at LIMIT 1)`,
+        [variant.product_id],
+      );
+    }
+    return { removedModels: await dropOrphanBlobs(client, blobs.map((b) => b.sha)) };
+  });
+  if (result.error) return res.status(result.status).json({ error: result.error });
+  res.json({ ok: true, ...result });
+}));

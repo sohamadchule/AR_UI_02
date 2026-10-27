@@ -301,3 +301,26 @@ export async function fetchAdminModel(token: string, sha256: string): Promise<Bl
 
 export const createProduct = (token: string, input: NewProductInput) =>
   adminFetch<CreatedProduct>(token, '/api/admin/products', { method: 'POST', body: JSON.stringify(input) });
+
+export interface AdminProductRow {
+  id: string;
+  slug: string;
+  name: string;
+  status: 'draft' | 'active' | 'archived';
+  createdAt: string;
+  category: string;
+  variants: { id: string; name: string; sku: string; colorHex: string | null; isDefault: boolean }[];
+  /** Size of the product's current GLB file(s). */
+  modelBytes: number;
+}
+
+export const fetchAdminProducts = (token: string) =>
+  adminFetch<{ products: AdminProductRow[] }>(token, '/api/admin/products').then((r) => r.products);
+
+/** Deletes a product with all its colours; `removedModels` counts GLB files freed with it. */
+export const deleteProduct = (token: string, id: string) =>
+  adminFetch<{ ok: true; removedModels: number }>(token, `/api/admin/products/${id}`, { method: 'DELETE' });
+
+/** Deletes one colour of a product (never its last). */
+export const deleteVariant = (token: string, id: string) =>
+  adminFetch<{ ok: true; removedModels: number }>(token, `/api/admin/variants/${id}`, { method: 'DELETE' });

@@ -9,6 +9,7 @@ import { RequestDemoPage } from '@/pages/RequestDemoPage';
 import { VerifyDemoEmailPage } from '@/pages/VerifyDemoEmailPage';
 import { AdminDemoRequestsPage } from '@/pages/AdminDemoRequestsPage';
 import { AdminModelUploadPage } from '@/pages/AdminModelUploadPage';
+import { AdminModelsPage } from '@/pages/AdminModelsPage';
 import { AdminReviewsPage } from '@/pages/AdminReviewsPage';
 import { StoreLayout } from '@/components/layout/StoreLayout';
 import { StoreHomePage } from '@/pages/store/StoreHomePage';
@@ -22,6 +23,7 @@ export default function App() {
       {/* Standalone public page: the destination of every QR code. */}
       <Route path="view/:variantId" element={<ViewPage />} />
       <Route path="admin" element={<AdminDemoRequestsPage />} />
+      <Route path="admin/models" element={<AdminModelsPage />} />
       <Route path="admin/models/new" element={<AdminModelUploadPage />} />
       <Route path="admin/reviews" element={<AdminReviewsPage />} />
       {/* Client storefronts: their own chrome and brand kit, never the Akruti layout. */}

@@ -485,9 +485,15 @@ export function AdminModelUploadPage() {
   const header = (
     <header className="mb-8 flex flex-wrap items-center justify-between gap-4">
       <div>
-        <Link to="/admin" className="text-xs uppercase tracking-[0.2em] text-fg-subtle hover:text-fg">
-          ← Admin
-        </Link>
+        <p className="text-xs uppercase tracking-[0.2em] text-fg-subtle">
+          <Link to="/admin" className="hover:text-fg">
+            ← Admin
+          </Link>{' '}
+          ·{' '}
+          <Link to="/admin/models" className="hover:text-fg">
+            All models
+          </Link>
+        </p>
         <h1 className="mt-2 text-3xl font-light">Upload a 3D model</h1>
         <p className="mt-1 text-sm text-fg-muted">Add a GLB, choose the part that changes colour, and offer colour options.</p>
       </div>
