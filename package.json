@@ -16,6 +16,7 @@
     "db:setup": "npm run db:create && npm run db:migrate && npm run db:seed",
     "server": "node server/index.mjs",
     "dev:all": "concurrently -k -n api,web -c blue,green \"npm:server\" \"npm:dev\"",
+    "dev:tunnel": "node scripts/dev-tunnel.mjs",
     "start": "npm run build && node server/index.mjs"
   },
   "dependencies": {
