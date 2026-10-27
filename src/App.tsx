@@ -11,6 +11,7 @@ import { AdminDemoRequestsPage } from '@/pages/AdminDemoRequestsPage';
 import { AdminModelUploadPage } from '@/pages/AdminModelUploadPage';
 import { AdminModelsPage } from '@/pages/AdminModelsPage';
 import { AdminReviewsPage } from '@/pages/AdminReviewsPage';
+import { AdminDesignRequestsPage } from '@/pages/AdminDesignRequestsPage';
 import { StoreLayout } from '@/components/layout/StoreLayout';
 import { StoreHomePage } from '@/pages/store/StoreHomePage';
 import { StoreProductPage } from '@/pages/store/StoreProductPage';
@@ -27,6 +28,7 @@ export default function App() {
       <Route path="admin/models" element={<AdminModelsPage />} />
       <Route path="admin/models/new" element={<AdminModelUploadPage />} />
       <Route path="admin/reviews" element={<AdminReviewsPage />} />
+      <Route path="admin/designs" element={<AdminDesignRequestsPage />} />
       {/* Client storefronts: their own chrome and brand kit, never the Akruti layout. */}
       <Route path="store/:brandSlug" element={<StoreLayout />}>
         <Route index element={<StoreHomePage />} />

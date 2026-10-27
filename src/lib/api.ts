@@ -236,6 +236,32 @@ export interface DesignPart {
   hex: string | null;
 }
 
+export type DesignStatus = 'new' | 'contacted' | 'closed';
+
+export interface AdminDesignRow {
+  id: string;
+  brand_slug: string;
+  variant_id: string | null;
+  product_name: string;
+  design: DesignPart[];
+  mix: string | null;
+  name: string;
+  phone: string;
+  city: string | null;
+  note: string | null;
+  status: DesignStatus;
+  created_at: string;
+}
+
+export interface DesignStats {
+  total: number;
+  last7: number;
+  last30: number;
+  /** Not contacted yet. */
+  waiting: number;
+  topProducts: { product: string; count: number }[];
+}
+
 /** Sends a design to the shop. Throws ApiValidationError with per-field messages when invalid. */
 export async function submitDesign(input: DesignInput): Promise<{ design: DesignPart[] }> {
   const res = await fetch('/api/designs', {
@@ -247,6 +273,17 @@ export async function submitDesign(input: DesignInput): Promise<{ design: Design
   if (res.ok) return { design: body.design ?? [] };
   throw new ApiValidationError(body.error ?? `Request failed (${res.status})`, body.errors as ApiValidationError['fieldErrors']);
 }
+
+export const fetchAdminDesigns = (token: string, brand = '') =>
+  adminFetch<{ requests: AdminDesignRow[]; stats: DesignStats; stores: { brand: string; count: number }[] }>(
+    token,
+    `/api/designs/admin${brand ? `?brand=${encodeURIComponent(brand)}` : ''}`,
+  );
+
+export const updateDesignStatus = (token: string, id: string, status: DesignStatus) =>
+  adminFetch<{ request: AdminDesignRow }>(token, `/api/designs/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) }).then((r) => r.request);
+
+export const deleteDesign = (token: string, id: string) => adminFetch<{ ok: true }>(token, `/api/designs/${id}`, { method: 'DELETE' });
 
 export interface Category {
   id: string;

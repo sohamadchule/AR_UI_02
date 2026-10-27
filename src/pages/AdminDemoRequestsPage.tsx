@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { Boxes, LogOut, MessageSquareQuote, RefreshCw, Upload } from 'lucide-react';
+import { Boxes, LogOut, MessageSquareQuote, Palette, RefreshCw, Upload } from 'lucide-react';
 import { fetchDemoRequests, updateDemoStatus, type DemoRequestRow, type DemoStatus } from '@/lib/api';
 import { Button, buttonClasses } from '@/components/ui/Button';
 import { cn } from '@/lib/cn';
@@ -142,6 +142,9 @@ export function AdminDemoRequestsPage() {
             </Link>
             <Link to="/admin/reviews" className={buttonClasses('outline', 'md')}>
               <MessageSquareQuote size={14} aria-hidden /> Reviews
+            </Link>
+            <Link to="/admin/designs" className={buttonClasses('outline', 'md')}>
+              <Palette size={14} aria-hidden /> Design requests
             </Link>
             <Button variant="outline" size="md" onClick={() => void load()} disabled={loading} icon={<RefreshCw size={14} className={cn(loading && 'animate-spin')} />}>
               Refresh
