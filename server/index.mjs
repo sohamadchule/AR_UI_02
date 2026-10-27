@@ -5,12 +5,14 @@ import express from 'express';
 import { admin } from './admin.mjs';
 import { api } from './routes.mjs';
 import { demo } from './demo.mjs';
+import { reviews } from './reviews.mjs';
 
 const app = express();
 app.disable('x-powered-by');
 app.set('trust proxy', true);
 
 app.use('/api/demo-requests', demo);
+app.use('/api/reviews', reviews);
 app.use('/api/admin', admin);
 app.use('/api', api);
 app.use('/api', (_req, res) => res.status(404).json({ error: 'Not found' }));

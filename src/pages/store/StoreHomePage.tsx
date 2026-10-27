@@ -159,7 +159,7 @@ export function StoreHomePage() {
       {flagship && (
         <>
           <CraftSection brand={brand} materials={flagship.materials} />
-          <ReviewsSection reviews={flagship.reviews} />
+          <ReviewsSection brand={brand} pieces={products.map((p) => p.name)} />
           <VisitSection brand={brand} pieces={products.map((p) => p.name)} />
         </>
       )}

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { LogOut, RefreshCw, Upload } from 'lucide-react';
+import { LogOut, MessageSquareQuote, RefreshCw, Upload } from 'lucide-react';
 import { fetchDemoRequests, updateDemoStatus, type DemoRequestRow, type DemoStatus } from '@/lib/api';
 import { Button, buttonClasses } from '@/components/ui/Button';
 import { cn } from '@/lib/cn';
@@ -136,6 +136,9 @@ export function AdminDemoRequestsPage() {
           <div className="flex gap-2">
             <Link to="/admin/models/new" className={buttonClasses('primary', 'md')}>
               <Upload size={14} aria-hidden /> Upload model
+            </Link>
+            <Link to="/admin/reviews" className={buttonClasses('outline', 'md')}>
+              <MessageSquareQuote size={14} aria-hidden /> Reviews
             </Link>
             <Button variant="outline" size="md" onClick={() => void load()} disabled={loading} icon={<RefreshCw size={14} className={cn(loading && 'animate-spin')} />}>
               Refresh

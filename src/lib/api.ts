@@ -157,6 +157,60 @@ export const updateDemoStatus = (token: string, id: string, status: DemoStatus) 
     body: JSON.stringify({ status }),
   }).then((r) => r.request);
 
+/* ---- store reviews ---- */
+
+export interface Review {
+  id: string;
+  name: string;
+  place: string | null;
+  piece: string | null;
+  quote: string;
+  created_at: string;
+}
+
+export type ReviewStatus = 'pending' | 'approved' | 'rejected';
+
+export interface AdminReviewRow extends Review {
+  brand_slug: string;
+  status: ReviewStatus;
+  is_sample: boolean;
+}
+
+export interface ReviewInput {
+  brand: string;
+  name: string;
+  place?: string;
+  piece?: string;
+  quote: string;
+  /** Honeypot: left empty by people, filled by bots. */
+  website?: string;
+}
+
+/** Approved reviews for one storefront, newest first. */
+export const fetchReviews = (brand: string) =>
+  getJson<{ reviews: Review[] }>(`/api/reviews?brand=${encodeURIComponent(brand)}`).then((r) => r.reviews);
+
+/** Submits a review for moderation. Throws ApiValidationError with per-field messages when invalid. */
+export async function submitReview(input: ReviewInput): Promise<void> {
+  const res = await fetch('/api/reviews', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (res.ok) return;
+  const body = (await res.json().catch(() => ({}))) as { error?: string; errors?: Record<string, string> };
+  throw new ApiValidationError(body.error ?? `Request failed (${res.status})`, body.errors as ApiValidationError['fieldErrors']);
+}
+
+export const fetchAdminReviews = (token: string) =>
+  adminFetch<{ reviews: AdminReviewRow[] }>(token, '/api/reviews/admin').then((r) => r.reviews);
+
+export const updateReviewStatus = (token: string, id: string, status: ReviewStatus) =>
+  adminFetch<{ review: AdminReviewRow }>(token, `/api/reviews/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) }).then((r) => r.review);
+
+export const deleteReview = (token: string, id: string) =>
+  adminFetch<{ ok: true }>(token, `/api/reviews/${id}`, { method: 'DELETE' });
+
 export interface Category {
   id: string;
   slug: string;

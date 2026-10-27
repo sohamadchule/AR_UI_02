@@ -68,7 +68,6 @@ export interface Flagship {
   process: [string, string, string][];
   /** What the pieces are made of. `swatch` is a CSS background drawn as the sample. */
   materials: { name: string; note: string; swatch: string }[];
-  reviews: { quote: string; name: string; place: string; piece: string }[];
 }
 
 export const BRANDS: readonly Brand[] = [
@@ -144,7 +143,7 @@ export const BRANDS: readonly Brand[] = [
       hours: ['Mon–Sat · 11 am – 8 pm', 'Sunday · by appointment'],
     },
     facade: 'haveli',
-    // Demo content: the reviews and figures are illustrative until a real client's replace them.
+    // Demo content: the figures are illustrative until a real client's replace them. Reviews live in the database (store_review).
     flagship: {
       featured: 'mahal-3-seater-sofa',
       collection: [
@@ -188,26 +187,6 @@ export const BRANDS: readonly Brand[] = [
           note: 'Woven by hand into backs and doors; light, cool and repairable.',
           swatch:
             'repeating-linear-gradient(45deg, #c8a46a 0 3px, transparent 3px 9px), repeating-linear-gradient(-45deg, #c8a46a 0 3px, transparent 3px 9px), #8a6a3c',
-        },
-      ],
-      reviews: [
-        {
-          quote: 'We placed the sofa in our living room on the phone first. It looked a little long, so they made it 15 cm shorter. It arrived exactly right.',
-          name: 'Ananya R.',
-          place: 'C-Scheme, Jaipur',
-          piece: 'Mahal sofa',
-        },
-        {
-          quote: 'I could check six dining chairs around our table before ordering. No guessing about the colour against our floor.',
-          name: 'Kabir & Meera',
-          place: 'Gurugram',
-          piece: 'Dining chairs',
-        },
-        {
-          quote: 'Our lift is narrow. They showed us the wardrobe’s real size and the doorway check before anything was cut.',
-          name: 'Farah S.',
-          place: 'Mumbai',
-          piece: 'Alcove wardrobe',
         },
       ],
     },
