@@ -19,10 +19,15 @@ export const AR_SESSION_MODE = "immersive-ar" as const;
  * `dom-overlay` is optional so the session still starts on runtimes that lack
  * it; we simply lose the HTML controls and fall back to tap-to-place.
  */
+export const AR_REQUIRED_FEATURES = ["hit-test"] as const;
+export const AR_OPTIONAL_FEATURES = ["dom-overlay", "light-estimation", "anchors"] as const;
+/** Everything we ask for. What the runtime GRANTS is read back from the session. */
+export const AR_FEATURES: string[] = [...AR_REQUIRED_FEATURES, ...AR_OPTIONAL_FEATURES];
+
 export function arSessionInit(overlayRoot: HTMLElement): XRSessionInit {
   return {
-    requiredFeatures: ["hit-test"],
-    optionalFeatures: ["dom-overlay", "light-estimation", "anchors"],
+    requiredFeatures: [...AR_REQUIRED_FEATURES],
+    optionalFeatures: [...AR_OPTIONAL_FEATURES],
     domOverlay: { root: overlayRoot },
   };
 }

@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type RefObject } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import { ArrowDown } from 'lucide-react';
 import type { Brand } from '@/data/brands';
 import { SECTION, photoProps, type Photo, type Showroom } from '@/data/showrooms';
@@ -37,8 +37,7 @@ const HINT = [0, 0.035] as const; // "scroll to step inside" fades away
 const DOORS = [0.03, 0.15] as const; // the glass doors slide open
 const DOLLY = [0.02, 0.33] as const; // the camera walks up to, then through, the doorway
 const THROUGH = [0.25, 0.34] as const; // the shop front gives way to the interior
-const INTERIOR = [0.3, 0.9] as const; // interior photos, one after another
-const WELCOME = [0.84, 0.95] as const; // the welcome settles in over the last photo
+const INTERIOR = [0.3, 0.95] as const; // interior photos, one after another
 const OUTRO = [0.93, 1] as const; // the stage fades into the page colour below
 
 /* ----------------------------------------------------------- shop front */
@@ -181,34 +180,6 @@ function ShopFront({
   );
 }
 
-/* --------------------------------------------------------------- welcome */
-
-function Welcome({ brand, reveal }: { brand: Brand; reveal: number }) {
-  const style: CSSProperties = { opacity: reveal, transform: `translateY(${(1 - reveal) * 24}px)` };
-  return (
-    <div className="absolute inset-0 flex items-center justify-center px-5 text-center text-ivory" style={style}>
-      <div className="max-w-2xl">
-        <p className="text-[11px] font-medium uppercase tracking-[0.32em] text-ivory/70">You’re inside</p>
-        <h2 className="mt-5 font-display text-[clamp(2.4rem,6vw,5rem)] leading-[1.02]">
-          Welcome to <em>{brand.legalName}.</em>
-        </h2>
-        <p className="mx-auto mt-5 max-w-[42ch] text-ivory/80 md:text-lg">
-          Take a look around. Every piece in the collection can be explored in 3D, and placed in your own room.
-        </p>
-        <button
-          type="button"
-          onClick={() => scrollToSection(SECTION.collection)}
-          tabIndex={reveal > 0.5 ? undefined : -1}
-          className="group mt-9 inline-flex h-12 items-center gap-3 rounded-full bg-ivory px-7 text-sm font-medium text-night transition-colors hover:bg-white"
-        >
-          Explore the collection
-          <ArrowDown size={16} aria-hidden className="transition-transform duration-500 group-hover:translate-y-0.5" />
-        </button>
-      </div>
-    </div>
-  );
-}
-
 /** The bottom of the stage dissolves into the page, so the collection follows on without a seam. */
 const Outro = ({ amount }: { amount: number }) => (
   <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-surface to-transparent" style={{ opacity: amount }} />
@@ -261,7 +232,6 @@ function FramesWalk({ brand, showroom, frames }: { brand: Brand; showroom: Showr
     const cut = INTERIOR[0] + (i + 1) * share;
     return Math.max(d, 1 - Math.min(1, Math.abs(p - cut) / (fade * 0.75)));
   }, 0);
-  const welcome = easeOut(range(p, WELCOME));
   const current = Math.min(frames.length - 1, Math.max(0, Math.floor((p - INTERIOR[0]) / share)));
 
   return (
@@ -297,14 +267,14 @@ function FramesWalk({ brand, showroom, frames }: { brand: Brand; showroom: Showr
             />
           );
         })}
-        {/* Darken toward the foot for the caption, and fully for the welcome. */}
+        {/* Darken toward the foot for the caption. */}
         <div aria-hidden className="absolute inset-0 bg-[linear-gradient(to_top,rgb(var(--night)/0.6),transparent_45%)]" />
-        <div aria-hidden className="absolute inset-0 bg-night" style={{ opacity: Math.max(welcome * 0.62, dip * 0.4) }} />
+        <div aria-hidden className="absolute inset-0 bg-night" style={{ opacity: dip * 0.4 }} />
 
-        {/* Where we are on the walk. */}
+        {/* Where we are on the walk; fades out as the stage dissolves into the collection. */}
         <div
           className="absolute bottom-[7%] left-5 flex items-baseline gap-4 text-ivory sm:left-8 md:left-12"
-          style={{ opacity: range(p, [INTERIOR[0] + 0.02, INTERIOR[0] + 0.05]) * (1 - welcome) }}
+          style={{ opacity: range(p, [INTERIOR[0] + 0.02, INTERIOR[0] + 0.05]) * (1 - range(p, OUTRO)) }}
           aria-hidden
         >
           <span className="text-xs tabular-nums tracking-[0.2em] text-ivory/60">
@@ -323,7 +293,6 @@ function FramesWalk({ brand, showroom, frames }: { brand: Brand; showroom: Showr
         </div>
         <div aria-hidden className="pointer-events-none absolute inset-0 bg-[#f3e9d8]" style={{ opacity: bloom }} />
 
-        <Welcome brand={brand} reveal={welcome} />
         <ScrollHint visible={1 - range(p, HINT)} />
         <Outro amount={range(p, OUTRO)} />
 
@@ -350,7 +319,6 @@ function VideoWalk({ brand, src, poster }: { brand: Brand; src: string; poster: 
     v.currentTime = Math.min(v.duration - 0.05, range(p, [0, playEnd]) * v.duration);
   }, [p, playEnd]);
 
-  const welcome = easeOut(range(p, WELCOME));
   return (
     <section ref={ref} id={SECTION.showroom} aria-label={`Walk into ${brand.legalName}`} className="relative h-[460svh] bg-night md:h-[560svh]">
       <div className="sticky top-0 h-[100svh] min-h-[520px] overflow-hidden bg-night">
@@ -364,37 +332,9 @@ function VideoWalk({ brand, src, poster }: { brand: Brand; src: string; poster: 
           aria-label={poster.alt}
           className="absolute inset-0 h-full w-full object-cover"
         />
-        <div aria-hidden className="absolute inset-0 bg-night" style={{ opacity: welcome * 0.62 }} />
-        <Welcome brand={brand} reveal={welcome} />
         <ScrollHint visible={1 - range(p, HINT)} />
         <Outro amount={range(p, OUTRO)} />
       </div>
-    </section>
-  );
-}
-
-/* ---------------------------------------------------------------- static */
-
-/** Reduced motion: no scroll-driven camera. The showroom photos, laid out, with the welcome. */
-function StaticWalk({ brand, frames }: { brand: Brand; frames: (Photo & { caption: string })[] }) {
-  const last = frames[frames.length - 1];
-  return (
-    <section id={SECTION.showroom} aria-label={`Inside ${brand.legalName}`} className="bg-night text-ivory">
-      <div className="relative h-[90svh] min-h-[520px] overflow-hidden">
-        <img {...photoProps(last)} loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
-        <div aria-hidden className="absolute inset-0 bg-night/55" />
-        <Welcome brand={brand} reveal={1} />
-      </div>
-      {frames.length > 1 && (
-        <ul className="grid grid-cols-2 gap-px md:grid-cols-4">
-          {frames.map((f) => (
-            <li key={f.base} className="relative aspect-[4/3]">
-              <img {...photoProps(f, '25vw')} loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
-              <span className="absolute bottom-3 left-4 font-display text-xl">{f.caption}</span>
-            </li>
-          ))}
-        </ul>
-      )}
     </section>
   );
 }
@@ -403,8 +343,8 @@ export function ShowroomWalkthrough({ brand, showroom }: { brand: Brand; showroo
   const [reduced] = useState(prefersReducedMotion);
   const w = showroom.walkthrough;
 
-  if (w.kind === 'video') {
-    return reduced ? <StaticWalk brand={brand} frames={[{ ...w.poster, caption: '' }]} /> : <VideoWalk brand={brand} src={w.src} poster={w.poster} />;
-  }
-  return reduced ? <StaticWalk brand={brand} frames={w.frames} /> : <FramesWalk brand={brand} showroom={showroom} frames={w.frames} />;
+  // Reduced motion: no walk at all. An empty anchor keeps "Explore the Showroom" links landing on the collection.
+  if (reduced) return <div id={SECTION.showroom} aria-hidden />;
+  if (w.kind === 'video') return <VideoWalk brand={brand} src={w.src} poster={w.poster} />;
+  return <FramesWalk brand={brand} showroom={showroom} frames={w.frames} />;
 }

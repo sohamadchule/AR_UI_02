@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "tsc --noEmit && vitest run && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "db:create": "node db/scripts/create.mjs",
@@ -13,11 +13,14 @@
     "db:verify": "node db/scripts/verify.mjs",
     "db:seed": "node db/scripts/seed.mjs",
     "db:seed:store": "node db/scripts/seed-store.mjs",
+    "db:real-size": "node db/scripts/real-size.mjs",
     "db:setup": "npm run db:create && npm run db:migrate && npm run db:seed",
     "server": "node server/index.mjs",
     "dev:all": "concurrently -k -n api,web -c blue,green \"npm:server\" \"npm:dev\"",
     "dev:tunnel": "node scripts/dev-tunnel.mjs",
-    "start": "npm run build && node server/index.mjs"
+    "start": "npm run build && node server/index.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@google/model-viewer": "^4.3.1",
@@ -47,6 +50,7 @@
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.15",
     "typescript": "^5.6.3",
-    "vite": "^5.4.11"
+    "vite": "^5.4.11",
+    "vitest": "^2.1.9"
   }
 }

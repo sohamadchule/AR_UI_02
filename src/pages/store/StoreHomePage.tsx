@@ -2,13 +2,13 @@ import { Link, useOutletContext, useSearchParams } from 'react-router-dom';
 import type { Brand } from '@/data/brands';
 import { storeProductPath } from '@/data/brands';
 import { useAsync } from '@/hooks/useAsync';
+import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 import { ModelThumb } from '@/features/store/ModelThumb';
 import { ShopEntrance } from '@/features/store/ShopEntrance';
 import { showroomBySlug } from '@/data/showrooms';
 import { ShowroomHomePage } from './ShowroomHomePage';
 import { VisualiseSection } from '@/features/store/flagship/VisualiseSection';
 import { ProcessSection } from '@/features/store/flagship/ProcessSection';
-import { CraftSection } from '@/features/store/flagship/CraftSection';
 import { ReviewsSection } from '@/features/store/flagship/ReviewsSection';
 import { VisitSection } from '@/features/store/flagship/VisitSection';
 import {
@@ -82,6 +82,8 @@ export function StoreHomePage() {
 
   // A shop with an immersive showroom site (src/data/showrooms.ts) gets that home page instead.
   const showroom = showroomBySlug(brand.slug);
+  // A showroom home sets its own title and description.
+  useDocumentTitle(showroom ? null : `${brand.legalName} — Furniture in ${brand.city}`);
   if (showroom) {
     return <ShowroomHomePage brand={brand} showroom={showroom} catalogue={catalogue.status === 'ready' ? catalogue.data : null} />;
   }
@@ -158,7 +160,6 @@ export function StoreHomePage() {
       </section>
       {flagship && (
         <>
-          <CraftSection brand={brand} materials={flagship.materials} />
           <ReviewsSection brand={brand} pieces={products.map((p) => p.name)} />
           <VisitSection brand={brand} pieces={products.map((p) => p.name)} />
         </>

@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import express, { Router } from 'express';
-import { glbMeta } from '../db/scripts/glb.mjs';
+import { PIPELINE_VERSION, glbMeta, toRealSize } from '../db/scripts/glb.mjs';
+import { validateModel } from '../db/scripts/validate.mjs';
 import { splitParts } from '../db/scripts/split.mjs';
 import { analyzeMaterials, buildTint } from '../db/scripts/tint.mjs';
 import { requireAdmin } from './auth.mjs';
@@ -224,6 +225,20 @@ admin.post('/products', express.json({ limit: '64kb' }), wrap(async (req, res) =
 
   // Recompute from the stored bytes: nothing about the model is taken from the client but the choice.
   const meta = glbMeta(blob.content);
+
+  // The quality gate. A model whose shape is not the product's cannot be shown at
+  // the product's size without lying about one or the other, so it may be saved as
+  // a draft but not published. Drafts are let through so the size can be corrected,
+  // or a better model uploaded, without losing the rest of the entry.
+  const check = validateModel(blob.content, v.dims);
+  if (!check.ok && v.status === 'active') {
+    return res.status(400).json({
+      error: 'This model cannot be published yet.',
+      errors: { model: check.issues.filter((i) => i.level === 'fail').map((i) => i.message).join(' ') },
+      check,
+    });
+  }
+
   let tint;
   try {
     tint = buildTint(analyzeMaterials(blob.content), v.tintMaterials, v.parts);
@@ -265,6 +280,33 @@ admin.post('/products', express.json({ limit: '64kb' }), wrap(async (req, res) =
       [categoryId, slug, v.name, v.description, v.status, v.dims.width ?? null, v.dims.height ?? null, v.dims.depth ?? null, v.unit],
     );
 
+    // Canonical asset: rewrite the model ONCE, here, so it stands at the listed
+    // size for every consumer — our WebXR engine, Scene Viewer and iOS Quick Look
+    // alike. The upload is never modified: the rewrite is new bytes under their
+    // own hash, so a blob shared by several products stays untouched for the others.
+    let assetSha = v.sha256;
+    let assetMeta = meta;
+    let normalization = null;
+    if (check.status) {
+      const real = toRealSize(blob.content, v.dims);
+      assetSha = createHash('sha256').update(real.bytes).digest('hex');
+      assetMeta = glbMeta(real.bytes);
+      normalization = JSON.stringify({
+        pipelineVersion: PIPELINE_VERSION,
+        status: real.status,
+        factor: real.factor,
+        turned: real.turned,
+        deviation: real.deviation,
+        sourceSha256: v.sha256,
+        targetMm: real.targetMm,
+        drawnMm: real.sizeMm,
+      });
+      await client.query(
+        'INSERT INTO model_blob (sha256, content, size_bytes) VALUES ($1, $2, $3) ON CONFLICT (sha256) DO NOTHING',
+        [assetSha, real.bytes, real.bytes.length],
+      );
+    }
+
     const skuBase = skuPart(slug).slice(0, 24).replace(/-+$/, '');
     const { rows: skuRows } = await client.query('SELECT sku FROM product_variant WHERE sku LIKE $1', [`${skuBase}-%`]);
     const takenSkus = new Set(skuRows.map((r) => r.sku));
@@ -278,15 +320,15 @@ admin.post('/products', express.json({ limit: '64kb' }), wrap(async (req, res) =
         [product.id, sku, c.name, c.fabric, tint ? (c.hex ?? tint.baseHex) : null, i === defaultIndex, i],
       );
       await client.query(
-        `INSERT INTO model_asset (variant_id, blob_sha256, version, is_current, original_filename, meta, tint)
-         VALUES ($1, $2, 1, true, $3, $4, $5)`,
-        [variant.id, v.sha256, v.filename.slice(0, 255), JSON.stringify(meta), tint && JSON.stringify(tint)],
+        `INSERT INTO model_asset (variant_id, blob_sha256, version, is_current, original_filename, meta, tint, normalization)
+         VALUES ($1, $2, 1, true, $3, $4, $5, $6)`,
+        [variant.id, assetSha, v.filename.slice(0, 255), JSON.stringify(assetMeta), tint && JSON.stringify(tint), normalization],
       );
       variants.push({ ...variant, isDefault: i === defaultIndex });
     }
 
     await client.query('COMMIT');
-    res.status(201).json({ product: { id: product.id, slug, status: v.status }, variants });
+    res.status(201).json({ product: { id: product.id, slug, status: v.status }, variants, check });
   } catch (err) {
     await client.query('ROLLBACK');
     if (err.code === '23505') {

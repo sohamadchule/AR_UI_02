@@ -170,11 +170,17 @@
   }
   .dark [data-brand='kadam'] {
     --surface: 22 21 19; --surface-raised: 29 27 24; --surface-sunken: 37 35 31;
-    --fg: 245 241 233; --fg-soft: 222 215 203; --fg-muted: 176 168 155; --fg-subtle: 128 121 110;
+    /* Warm off-white rather than near-white: still ~14:1 on the surface, without the glare. */
+    --fg: 232 226 215; --fg-soft: 212 205 193; --fg-muted: 176 168 155; --fg-subtle: 128 121 110;
     --line: 245 241 233;
     --accent: 196 154 116; --accent-ink: 28 22 16;
     --olive: 166 170 138;
   }
+}
+
+/* In dark mode, photography is toned down to sit in the page instead of glowing off it. */
+.dark [data-photo] {
+  filter: brightness(0.74) contrast(0.94) saturate(0.88);
 }
 
 @layer components {

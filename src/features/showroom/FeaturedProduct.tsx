@@ -75,6 +75,8 @@ export function FeaturedProduct({ brand, showroom, product }: { brand: Brand; sh
                   src={variant.model.url}
                   alt={`3D model of the ${product.name} in ${variant.name}`}
                   recolor={recolorOf(variant, picks)}
+                  variant={variant}
+                  picks={picks}
                   autoRotate
                   disableZoom
                   showArUnavailable={false}

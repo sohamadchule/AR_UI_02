@@ -7,6 +7,28 @@ export interface Dimensions {
   depth: number | null;
 }
 
+/** Where a product's listed size came from. Agreement with the model is separate. */
+export type DimensionSource = 'MEASURED_PHYSICAL' | 'MANUFACTURER_SPEC' | 'ESTIMATED' | 'UNKNOWN';
+
+/**
+ * How a stored model was brought to its product's listed size, recorded once at
+ * ingest. Null for an asset that was never normalised.
+ */
+export interface Normalization {
+  pipelineVersion: number;
+  /** verified: drawn at the listed size. approximate: the model's shape differs. */
+  status: 'verified' | 'approximate' | 'no-dimensions';
+  /** The single uniform factor applied; models are never stretched per axis. */
+  factor: number;
+  /** A side-on model was turned a quarter. */
+  turned: boolean;
+  /** Worst side's disagreement with the listing (0.2 = 20%). */
+  deviation: number;
+  sourceSha256: string;
+  targetMm: { width: number | null; height: number | null; depth: number | null };
+  drawnMm: { width: number; height: number; depth: number };
+}
+
 export interface Variant {
   id: string;
   sku: string;
@@ -31,6 +53,8 @@ export interface Variant {
     dimensionsMm: Dimensions | null;
     /** Unit the product's size is displayed in. */
     dimensionUnit: Unit;
+    /** Provenance of the listed size; only measured or manufacturer data backs a "real size" claim. */
+    dimensionSource: DimensionSource;
   };
   category: { slug: string; name: string };
   model: {
@@ -42,6 +66,8 @@ export interface Variant {
     dimensionsM: { width: number; height: number; depth: number } | null;
     /** Materials to recolour to `colorHex`; null when the model is shown as authored. */
     tint: Tint | null;
+    /** How this asset was brought to the listed size; null for a raw upload. */
+    normalization: Normalization | null;
   };
 }
 

@@ -7,12 +7,6 @@ import { FurnitureCard } from './FurnitureCard';
 import { ViewerDialog, type ViewerMode } from './ViewerDialog';
 import { cn } from '@/lib/cn';
 
-/*
- * Editorial rhythm on wide screens: a large piece beside a medium one, then a row of
- * three. Columns out of 12, repeating every five pieces.
- */
-const SPANS = ['lg:col-span-7', 'lg:col-span-5', 'lg:col-span-4', 'lg:col-span-4', 'lg:col-span-4'];
-
 export function FurnitureCollection({
   brand,
   showroom,
@@ -80,16 +74,11 @@ export function FurnitureCollection({
           </p>
         )}
 
-        <div className="mt-10 grid gap-x-8 gap-y-16 sm:grid-cols-2 lg:grid-cols-12">
-          {shown.map((product, i) => (
-            <Reveal key={product.slug} className={cn(SPANS[i % SPANS.length])}>
-              <FurnitureCard
-                brand={brand}
-                showroom={showroom}
-                product={product}
-                large={i % SPANS.length === 0}
-                onView={(p, mode) => setViewing({ product: p, mode })}
-              />
+        {/* One even grid: every piece the same size, so the rows line up. */}
+        <div className="mt-10 grid gap-x-8 gap-y-16 sm:grid-cols-2 lg:grid-cols-3">
+          {shown.map((product) => (
+            <Reveal key={product.slug}>
+              <FurnitureCard brand={brand} showroom={showroom} product={product} onView={(p, mode) => setViewing({ product: p, mode })} />
             </Reveal>
           ))}
         </div>

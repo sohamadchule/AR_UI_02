@@ -1,0 +1,390 @@
+AKRUTI AR - FURNISH A ROOM AT REAL SIZE
+Change log - 2026-10-26
+=======================================
+
+WHAT THE CUSTOMER CAN NOW DO (Android Chrome)
+---------------------------------------------
+1. Open AR from a product page. The floor is found and fixed on the first tap.
+2. Place the product at its real catalogue size, standing exactly on the floor.
+3. Add more products without leaving AR (+ Add furniture). All of them stay in
+   the same room.
+4. Tap any piece to select it, then:
+     - drag it with one finger to move it along the floor
+     - twist two fingers (or tap the 15 deg buttons) to turn it
+     - change its colour, Move it to another spot, Duplicate it or Delete it
+5. See warnings while arranging:
+     - red outline: two pieces may overlap
+     - amber outline: the gap is too narrow to walk through
+     - the gap in cm to the nearest piece (and to the nearest wall, once the
+       room is known)
+6. Tell the app the room (Room & measure):
+     - tap each corner of the room on the floor, or
+     - type the room's width x depth, then mark one corner and one wall
+   The app shows the room size, wall lengths and area, and flags any piece
+   that goes past a wall.
+7. Use a ruler: measure between any two points on the floor.
+8. "Will it fit?" on the product page: enter the available width / depth /
+   max height and get a plain answer ("20 cm too wide", "fits with 8 cm to
+   spare", "fits only if turned sideways"). That space can also be placed in
+   AR as a blue box (+ Add furniture -> Your space).
+
+Products are never resized. If a product's size is not listed (or its 3D
+model doesn't match the listed size) it is shown at the model's own size with
+a notice, and nothing is blocked.
+
+
+PHASE 1 - REAL SIZE
+-------------------
+Before: AR drew every GLB at the file's own scale and ignored the catalogue
+size. Seed models came out about half size (sofa) or kilometres wide (chair,
+desk, tables, lamp). Pinch-to-resize let the size be changed.
+
+Now (src/lib/trueScale.ts, used by the AR engine):
+  - The loaded model is measured vertex by vertex and compared with the
+    catalogue size. If all three sides need the same factor (within 5%), the
+    model is scaled by it. This fixes files exported in cm, mm or odd units.
+  - If that only works with width and depth swapped, the model was exported
+    side-on and is turned 90 degrees.
+  - If the shape doesn't match: drawn as close to the listed size as its
+    shape allows, with a notice giving the listed size and how far off it is.
+    (Originally it was drawn at the file's own size. That put 687 km desks in
+    the room; fixed after the phone test.)
+  - No size listed: the file's size, corrected by a power of ten if its units
+    are clearly wrong, with a notice.
+  - Anything still bigger than 6 m or smaller than 5 cm is refused with a
+    message.
+  - Pinch-to-resize removed.
+
+Seed results:
+  Mahal sofa   real size  212 x 91 x 75 cm   (listed 212 x 88 x 76)
+  Ira chair    real size  78 x 81 x 97 cm    (listed 78 x 82 x 94)
+  Bookshelf    real size, turned 90 deg  180 x 33 x 180 (listed 180 x 32 x 185)
+  Wardrobe     notice - the model doesn't match its listed size
+  Stool        notice - the model is 83 cm tall, listed as 74 cm
+
+
+PHASE 2 - RELIABLE FLOOR PLACEMENT
+----------------------------------
+  - Each surface the camera hits is classed as floor / raised (table, bed) /
+    wall / other, from its direction and height.
+  - Before the floor is set, the floor is the lowest level surface at least
+    60 cm below the phone. The first tap fixes it ("Set floor here").
+  - From then on the floor is exactly height 0 in the room: floor pieces can't
+    float or sink, and a tap on a table or wall is refused with a hint.
+  - The room is held by a WebXR anchor where the phone supports anchors, so
+    ARCore's corrections move the whole room together and the gaps between
+    pieces stay true.
+  - If tracking is lost: placing and dragging stop, and the hint says to move
+    slowly in good light.
+  - Placement by product type (from its name or category):
+      floor     - sofas, chairs, tables, beds, wardrobes, floor lamps...
+      wall      - mirrors, paintings, wall shelves, clocks...
+      tabletop  - table lamps, vases, planters... (on a table or the floor)
+  - "Start over" clears everything, for when the floor was set on the wrong
+    surface.
+
+
+PHASE 3 + 4 - SEVERAL PIECES IN ONE ROOM, AND EDITING THEM
+-----------------------------------------------------------
+  - One AR session, one scene, one shared room frame for every piece.
+  - Each model file is downloaded once and reused for copies and colours.
+  - Up to 12 pieces at once (for phone memory).
+  - The product drawer lists the catalogue, with each product's size and
+    where it goes.
+  - Select by tapping; move by dragging (along the floor, along a table top,
+    or along the wall for wall pieces); turn by twisting or the 15 deg
+    buttons (wall pieces always face out from their wall).
+  - Move (pick up and put down somewhere else), Duplicate (placed beside the
+    original), Delete, and colour swatches per piece.
+
+
+PHASE 5 - OVERLAP AND WALKING SPACE (src/lib/room.ts)
+------------------------------------------------------
+  - Each piece is treated as a box: its floor footprint plus its height.
+  - Overlap: footprints overlap by more than 1 cm AND the heights meet. A
+    wall TV above a cabinet, or a lamp on a table, is not an overlap.
+  - Tight: a gap between 15 cm and the walking space needed:
+        60 cm normally,
+        35 cm when one piece is a companion piece (coffee/side table,
+        ottoman, lamp...).
+    Gaps under 15 cm count as pushed together on purpose.
+  - Checks run on real-world positions, not on the screen, so pieces that only
+    look overlapped because of perspective are not flagged.
+  - Boxes are approximate for curved or L-shaped pieces, so the wording is
+    "may overlap".
+
+
+PHASE 6 - ROOM MEASUREMENT
+--------------------------
+  - Corners: aim at each corner where the floor meets the walls, tap Add
+    corner, then Finish room (3 or more corners; any shape).
+  - Known size: type width x depth, mark one corner, then mark a point along
+    the wall the width runs along. The room is built towards where you stand.
+  - Once the floor is set, aiming follows the floor plane itself, so corners
+    ARCore hasn't mapped yet can still be reached.
+  - Shows the room's width x depth, area and each wall's length. Pieces
+    crossing a wall are flagged red; the selected piece shows its distance to
+    the nearest wall.
+  - Ruler: two taps on the floor gives the distance in cm.
+  - Not done: automatic wall detection or a 3D room scan. ARCore on Android
+    phones has no room mesh, so measuring stays guided or typed.
+
+
+FIT CHECK (src/lib/fit.ts, src/features/experience/FitCheck.tsx)
+---------------------------------------------------------------
+  - Shown on the store product page (under Dimensions) and on the QR /view
+    page.
+  - Compares the real product size with the space entered. It never resizes.
+  - The space is remembered on the phone (localStorage) and offered in AR as
+    "Your space".
+  - Made-to-measure is not built (no shop sells it yet).
+
+
+FILES
+-----
+  NEW   src/lib/trueScale.ts                       real-size decision
+  NEW   src/lib/room.ts                            overlap, gaps, walls, room size
+  NEW   src/lib/fit.ts                             fit check + remembered space
+  NEW   src/lib/placement.ts                       floor / wall / tabletop
+  NEW   src/features/experience/roomEngine.ts      AR engine (three.js + WebXR)
+  NEW   src/features/experience/FitCheck.tsx       "Will it fit?" form
+  REWRITTEN src/features/experience/ArScene.tsx    AR screen controls and panels
+  CHANGED src/features/experience/ProductArExperience.tsx  takes `variant`
+  CHANGED src/features/experience/ModelStage.tsx, src/features/hero/HeroStage.tsx,
+          src/features/showroom/FeaturedProduct.tsx         pass the variant
+  CHANGED src/pages/store/StoreProductPage.tsx, src/pages/ViewPage.tsx  add FitCheck
+  CHANGED src/pages/AdminModelUploadPage.tsx       corrected note about AR scale
+  CHANGED db/seed/furniture/SOURCE.txt             corrected note about AR scale
+
+  No database, API, server or dependency changes.
+  Typecheck (npx tsc --noEmit) and production build (vite build) both pass.
+  The overlap / gap / room / fit logic was run against sample layouts.
+  NOT yet run on a phone.
+
+
+HOW TO TEST
+===========
+Setup
+  1. npm run dev:tunnel (instead of dev:all). It starts the tunnel, the API and
+     the site, and prints the new https://….trycloudflare.com address with a
+     QR code. No .env editing needed.
+  2. On an ARCore-supported Android phone, scan that QR code (or type the
+     address) in Chrome and go to a product.
+  3. The button must say "View in your room". If it says "View in AR" you are
+     on plain http and in Google Scene Viewer, which has none of these features.
+  4. Tap "View in your room". Allow the camera.
+
+A. Real size (most important; needs a tape measure)
+  - Tape 2.00 m along the floor. Place the Mahal sofa with one end on the
+    start mark, turned so its width runs along the tape. Its far end should
+    land about 212 cm from the start (aim for within about 3-4 cm).
+  - Check from 1 m, 2 m and 3 m away.
+  - The selected sofa's card should read about 212 x 91 x 75 cm and "real size".
+  - Ruler check: measure the 2.00 m tape with Room & measure -> Ruler. If the
+    ruler is off by the same amount as the sofa, the error is the phone's
+    tracking, not the model.
+  - Open the wardrobe or stool: an amber notice should say the model doesn't
+    match its listed size. It still places.
+  - Pinch should not resize anything.
+
+B. Floor
+  - Point at a table first: hint "looks raised", and Set floor is disabled.
+  - Point at the floor: "Set floor here" -> the sofa sits on the floor. Look
+    from low down: no gap under the legs, not sunk in.
+  - With the floor set, aim at a sofa seat or table: placing a floor piece
+    should be refused with a hint.
+  - Cover the camera or move very fast: the "Tracking lost" hint appears and
+    dragging stops. Uncover it: pieces should come back where they were.
+
+C. Several pieces
+  - Place sofa -> + Add furniture -> lounge chair -> place -> Duplicate it ->
+    add a table.
+  - Move one chair: the sofa and the other chair must not move.
+  - Walk around the room for a minute and come back: every piece should still
+    be on its tape mark (note how many cm it moved).
+  - Change a chair's colour: only that chair changes.
+  - Delete a piece; Move a piece to another spot.
+  - Try to add a 13th piece: a message says the limit is 12.
+
+D. Overlap and walking space
+  - Drag the chair into the sofa: both outlines turn red; the card says
+    "May overlap".
+  - Leave about 40 cm between two chairs: amber, "too narrow to walk through".
+  - Leave about 40 cm between the sofa and a coffee table: should be OK (35 cm
+    rule for companion pieces).
+  - Push two chairs fully together (under 15 cm): no warning.
+  - Seen from an angle where they only look overlapped on screen: no warning.
+
+E. Room
+  - Room & measure -> Measure room by its corners -> tap the 4 corners ->
+    Finish room. Compare width / depth / walls with a tape or laser measure.
+    Write down the error.
+  - Room & measure -> enter the real size -> mark a corner -> mark along the
+    wall. The outline should sit on the real walls.
+  - Drag a piece through a wall line: red, "Goes past the room's walls".
+  - The selected piece shows its distance to the nearest wall.
+
+F. Fit check (any browser, no AR needed)
+  - Mahal sofa product page -> Will it fit? -> width 200, depth 90:
+    "It doesn't fit. 12 cm too wide."
+  - Width 220, depth 100: "It fits." with the spare cm shown.
+  - Open AR -> + Add furniture -> Your space shows the same numbers -> Place my
+    space -> a blue box. Place the sofa inside it.
+
+G. Phone performance
+  - Place 8-10 pieces and use AR for about 10 minutes: note whether it stays
+    smooth, and whether the phone gets hot or the page reloads.
+  - Note how long the sofa takes to load (the file is 13 MB; compressing it is
+    recommended).
+  - Repeat on one cheaper and one newer phone.
+
+Write down the numbers (sofa error in cm, movement after walking around, room
+measurement error) for each phone. Those numbers are what shows the sizes are
+right, not just that the demo looks right.
+
+
+FIXES AFTER THE FIRST PHONE TEST
+--------------------------------
+Reported: AR sometimes hangs; after placing one piece, the next one doesn't
+appear.
+  1. Taps were counted twice. Chrome also sends every tap on the AR screen to
+     the AR session as a "select", which placed pieces too. Taps on buttons
+     could therefore place or move a piece unexpectedly. Now cancelled
+     (beforexrselect) in ArScene.tsx.
+  2. Floor check too strict. A spot counted as floor only within 6 cm of the
+     floor locked on the first tap. ARCore's floor estimate moves more than
+     that, so later pieces were refused (amber ring, Place disabled). Now
+     15 cm.
+  3. No fallback over unmapped floor. Where ARCore hasn't mapped the floor yet,
+     floor pieces now aim at the floor already found. A real table or wall
+     under the ring still wins.
+  4. Freezing. Any error inside the per-frame loop stopped the AR picture. The
+     loop now logs the error and keeps drawing.
+  5. Shadow map reduced from 2048 to 1024 (less GPU work per frame).
+  6. After placing, the selected piece's card now has "+ Add another piece".
+     Before, you had to tap Done to see "+ Add furniture".
+
+Still heavy: Sofa.glb is 13 MB with 282,000 triangles and two 2048x2048
+textures; every other model is about 1,000 triangles. Over the tunnel it
+downloads slowly, and two sofas mean over a million triangles per frame. It
+should be compressed / simplified (target under 5 MB).
+
+
+MODEL SIZES CORRECTED IN THE DATABASE (2026-10-27)
+--------------------------------------------------
+Every product's 3D model file now IS its listed size, so AR, the 3D view and
+Scene Viewer all show real size with no runtime guessing. All 15 products are
+"real size" (scale 1.000). Previous model versions are kept in model_asset.
+
+  - db/scripts/glb.mjs  toRealSize(): rewrites a GLB to a given size by adding
+    one root node (turn if side-on, scale, centre, base on the floor). Meshes,
+    materials, colour data and copyright notices are untouched. Running it
+    twice changes nothing.
+  - db/scripts/real-size.mjs (npm run db:real-size, --dry-run to preview):
+    fixes every product's current model in the database, including admin
+    uploads. Products with no listed size get the model's own size.
+  - seed-store.mjs / seed.mjs: store models at real size when seeding, so
+    re-seeding can't bring the wrong sizes back. seed.mjs now also sets the
+    dining chair's and table lamp's sizes.
+  - The original files in db/seed/ are NOT modified (they aren't in git).
+
+Data fixes:
+  - "Desk": was 10 x 10 x 10 cm in Lighting. Now 140 x 65 x 75 cm in Study
+    (same model file as the Kaam writing desk). Change it in admin if the real
+    desk differs.
+  - "RoundDiningTable" (slug rounddiningtable-3): had no size; set to the
+    model's 120 x 120 x 75 cm.
+  - Table Lamp and Upholstered Dining Chair: had no size; set to their models'
+    real sizes.
+
+Stretched stand-ins (replace with real models): Sabha dining table, Nook side
+table, Kaam desk + Desk, Halo floor lamp, Alcove wardrobe, Perch bar stool. See
+db/seed/furniture/SOURCE.txt.
+
+Also noticed: there are three "RoundDiningTable" products (slugs
+rounddiningtable, -2, -3) with the same model: probably repeated test uploads.
+Not deleted.
+
+
+DATABASE FIXES (2026-10-31)
+---------------------------
+  - The API failed with "column p.dimension_source does not exist": the
+    canonical-assets migration had never been run. Applied it.
+  - Renamed it 0008_canonical_assets.sql -> 0009_canonical_assets.sql, because
+    0008_design_request.sql already used 0008. Its schema_migrations row was
+    renamed to match. The file had never been committed, so no other database
+    is affected.
+  - Where each product's size came from (product.dimension_source), labelled
+    honestly:
+      ESTIMATED          desk (copied from the Kaam desk), rounddiningtable-3,
+                         table-lamp, upholstered-dining-chair (taken from
+                         their 3D models)
+      UNKNOWN            rounddiningtable, rounddiningtable-2 (typed in admin,
+                         source not recorded)
+      MANUFACTURER_SPEC  the 9 seeded store products
+
+
+ROUND TABLE DEDUPLICATION (2026-10-31)
+--------------------------------------
+Three products used the same RoundDiningTable.glb model (slugs rounddiningtable,
+rounddiningtable-2, rounddiningtable-3). Kept one: rounddiningtable (three colour
+variants, listed 120 × 116.8 × 73 cm, dimension_source UNKNOWN). The other two
+were deleted through the admin delete flow; one orphaned blob was freed.
+
+Note: the kept table's depth is 116.8 cm, not the expected 120 cm for a round
+table. This came from the admin upload; verify it or update it in admin.
+
+
+PIPELINE V2 RE-NORMALISATION (2026-10-31)
+------------------------------------------
+All model assets re-normalised under pipeline v2 (one uniform scale factor, never
+stretched per-axis). 14 models updated; 23 of 23 current model versions now carry
+a v2 normalisation stamp. A dry run reports 0 changes remaining.
+
+Six stand-in models remain approximate (the 3D shape doesn't match the listed
+size well enough for a single scale factor):
+  Alcove wardrobe    41 % off
+  Halo floor lamp    85 % off
+  Sabha dining table 53 % off
+  Nook side table    39 % off
+  Kaam desk + Desk   20 % off
+  Perch bar stool    14 % off
+These need replacing with real manufacturer models.
+
+
+3D MODEL CREDITS PAGE (2026-10-31)
+-----------------------------------
+A /credits page lists every third-party 3D model used, with creator, source link,
+licence link and changes made. Linked from:
+  - Akruti marketing footer (Footer.tsx)
+  - Store footer (StoreLayout.tsx)
+  - Showroom footer (ShopFooter.tsx)
+  - QR /view page (ViewPage.tsx)
+
+Files:
+  NEW   src/data/credits.ts          credit data
+  NEW   src/pages/CreditsPage.tsx     the page
+  CHANGED src/App.tsx                 /credits route
+  CHANGED src/components/layout/Footer.tsx       credit link
+  CHANGED src/components/layout/StoreLayout.tsx  credit link
+  CHANGED src/features/showroom/ShopFooter.tsx   credit link
+  CHANGED src/pages/ViewPage.tsx                 credit link
+
+Models with unknown source (not credited):
+  - db/seed/models/lamp.glb (used for Table Lamp) — no copyright, no source
+  - RoundDiningTable.glb (admin upload) — no copyright, no source
+  - Models in the GLB files/ folder — no source or licence information
+Find and record these models' sources, or replace them.
+
+
+KNOWN LIMITS
+------------
+  - iOS / non-WebXR phones keep the old single-product viewer (model-viewer),
+    at the file's own scale.
+  - The facing of a side-on model is a guess. Turn it if it faces the wrong way.
+  - A wall piece's outline may show red if the measured room line doesn't
+    exactly match the wall ARCore detected.
+  - Wall detection on plain painted walls, and floor detection on glossy
+    tiles or in low light, can be slow or fail. Move slowly and add light.
+  - Placement type (floor / wall / table) is guessed from the product name and
+    category. A database field would be more reliable later.

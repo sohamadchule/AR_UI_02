@@ -29,6 +29,8 @@ export function ModelStage({
           src={variant.model.url}
           alt={`3D model of ${variant.product.name}, ${variant.name}`}
           recolor={recolorOf(variant, picks)}
+          variant={variant}
+          picks={picks}
           showArUnavailable={showArUnavailable}
         />
       </ErrorBoundary>

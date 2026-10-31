@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DB_DIR, connect } from './lib.mjs';
-import { glbMeta } from './glb.mjs';
+import { glbMeta, toRealSize } from './glb.mjs';
 import { analyzeMaterials, buildTint } from './tint.mjs';
 
 const MODELS = join(DB_DIR, 'seed', 'models');
@@ -21,6 +21,8 @@ const PRODUCTS = [
     category: 'seating',
     name: 'Upholstered Dining Chair',
     description: 'High-back dining chair with a solid wood frame and upholstered seat.',
+    // Real-world size in mm, [width, depth, height]: the model's own (it is authored in metres).
+    size: [826.6, 570.3, 686.2],
     // `tint: true` recolours the model's fabric materials; `hex` defaults to the detected colour.
     variants: [
       { sku: 'CHAIR-STD', name: 'Standard', material: 'Velvet', isDefault: true, file: 'chair.glb', tint: true },
@@ -34,6 +36,7 @@ const PRODUCTS = [
     category: 'lighting',
     name: 'Table Lamp',
     description: 'Compact table lamp.',
+    size: [287.5, 287, 569.8],
     variants: [{ sku: 'LAMP-STD', name: 'Standard', material: null, isDefault: true, file: 'lamp.glb' }],
   },
 ];
@@ -54,17 +57,21 @@ try {
   }
 
   for (const p of PRODUCTS) {
+    const [width, depth, height] = p.size;
     const { rows: [product] } = await db.query(
-      `INSERT INTO product (category_id, slug, name, description, status)
-       VALUES ($1, $2, $3, $4, 'active')
-       ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name, description = EXCLUDED.description
+      `INSERT INTO product (category_id, slug, name, description, status, width_mm, depth_mm, height_mm, dimension_unit)
+       VALUES ($1, $2, $3, $4, 'active', $5, $6, $7, 'cm')
+       ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name, description = EXCLUDED.description,
+         width_mm = EXCLUDED.width_mm, depth_mm = EXCLUDED.depth_mm, height_mm = EXCLUDED.height_mm,
+         dimension_unit = EXCLUDED.dimension_unit
        RETURNING id`,
-      [categoryId.get(p.category), p.slug, p.name, p.description],
+      [categoryId.get(p.category), p.slug, p.name, p.description, width, depth, height],
     );
 
     let order = 0;
     for (const v of p.variants) {
-      const bytes = readFileSync(join(MODELS, v.file));
+      // Stored at the product's real size: centred, base on the floor.
+      const bytes = toRealSize(readFileSync(join(MODELS, v.file)), { width, depth, height }).bytes;
       const meta = glbMeta(bytes); // also validates the container
       const sha = createHash('sha256').update(bytes).digest('hex');
       let tint = null;

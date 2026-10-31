@@ -1,6 +1,7 @@
 import { useOutletContext } from 'react-router-dom';
 import { Clock, Mail, MapPin, MessageCircle, Navigation, Phone } from 'lucide-react';
 import { telLink, whatsappLink, type Brand } from '@/data/brands';
+import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 
 const mapEmbed = (query: string) => `https://maps.google.com/maps?q=${encodeURIComponent(query)}&z=15&output=embed`;
 const directions = (query: string) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
@@ -8,6 +9,7 @@ const directions = (query: string) => `https://www.google.com/maps/search/?api=1
 /** The shop's story, then every way to reach it: call, WhatsApp, email, and a map to the showroom. */
 export function StoreAboutPage() {
   const brand = useOutletContext<Brand>();
+  useDocumentTitle(`About & contact — ${brand.legalName}`);
   const { about, contact } = brand;
 
   const reach = [

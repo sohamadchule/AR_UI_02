@@ -6,7 +6,7 @@ import { ShopHero } from '@/features/showroom/ShopHero';
 import { ShowroomWalkthrough } from '@/features/showroom/ShowroomWalkthrough';
 import { FurnitureCollection } from '@/features/showroom/FurnitureCollection';
 import { FeaturedProduct } from '@/features/showroom/FeaturedProduct';
-import { ShopAbout, ShopClosing, ShopContact, ShopHighlights } from '@/features/showroom/ShopSections';
+import { ShopAbout, ShopContact, ShopHighlights } from '@/features/showroom/ShopSections';
 
 /** Sets the page title and description while mounted, and puts the previous ones back after. */
 function useSeo(title: string, description: string) {
@@ -31,8 +31,9 @@ function useSeo(title: string, description: string) {
 }
 
 /**
- * The immersive showroom home page: the shop → walking in → the collection → one
- * piece up close → why us → the story → how to visit. Its words and pictures come
+ * The immersive showroom home page: the shop → walking in → one piece up close →
+ * the collection → why us → the story (with the way to the collection and the
+ * shop) → how to visit. Its words and pictures come
  * from src/data/showrooms.ts; its products from the live catalogue.
  */
 export function ShowroomHomePage({
@@ -52,12 +53,11 @@ export function ShowroomHomePage({
     <>
       <ShopHero brand={brand} showroom={showroom} />
       <ShowroomWalkthrough brand={brand} showroom={showroom} />
-      <FurnitureCollection brand={brand} showroom={showroom} catalogue={data} />
       {featured && <FeaturedProduct brand={brand} showroom={showroom} product={featured} />}
+      <FurnitureCollection brand={brand} showroom={showroom} catalogue={data} />
       <ShopHighlights showroom={showroom} />
       <ShopAbout brand={brand} showroom={showroom} />
       <ShopContact brand={brand} showroom={showroom} />
-      <ShopClosing showroom={showroom} />
     </>
   );
 }

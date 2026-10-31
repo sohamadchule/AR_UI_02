@@ -3,7 +3,7 @@
 // every run, so it is passed as PUBLIC_BASE_URL (real environment variables win
 // over .env) and QR codes point at it with no .env editing.
 import { spawn, spawnSync } from 'node:child_process';
-import { createServer } from 'node:net';
+import { connect } from 'node:net';
 import QRCode from 'qrcode';
 
 const WEB_PORT = 5173;
@@ -27,22 +27,28 @@ function stopAll(code = 0) {
 process.on('SIGINT', () => stopAll(0));
 process.on('SIGTERM', () => stopAll(0));
 
-/** Whether nothing is listening on `port` yet. */
-const isFree = (port) =>
+/** Whether something answers on `host`:`port`. */
+const answers = (host, port) =>
   new Promise((resolve) => {
-    const probe = createServer()
-      .once('error', () => resolve(false))
-      .once('listening', () => probe.close(() => resolve(true)))
-      .listen(port);
+    const socket = connect({ host, port, timeout: 1000 })
+      .once('connect', () => (socket.destroy(), resolve(true)))
+      .once('timeout', () => (socket.destroy(), resolve(false)))
+      .once('error', () => resolve(false));
   });
+
+/**
+ * Whether nothing is listening on `port` yet. Asks both loopbacks: Vite listens on IPv6 only,
+ * and on Windows a test listen on IPv4 succeeds beside it, so that check missed a running site.
+ */
+const isFree = async (port) => !(await answers('127.0.0.1', port)) && !(await answers('::1', port));
 
 // This runs the same API and site as dev:all, so it can't run alongside it.
 const busy = [];
 for (const port of [API_PORT, WEB_PORT]) if (!(await isFree(port))) busy.push(port);
 if (busy.length) {
   console.error(
-    `Port ${busy.join(' and ')} ${busy.length > 1 ? 'are' : 'is'} already in use, most likely by npm run dev:all.\n` +
-      'dev:tunnel starts the API and site itself: stop dev:all (Ctrl+C in its terminal) and run this again.',
+    `Port ${busy.join(' and ')} ${busy.length > 1 ? 'are' : 'is'} already in use, most likely by npm run dev or dev:all in another terminal.\n` +
+      'dev:tunnel starts the API and site itself: stop the other one (Ctrl+C in its terminal) and run this again.',
   );
   process.exit(1);
 }

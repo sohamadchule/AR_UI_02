@@ -13,7 +13,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DB_DIR, connect } from './lib.mjs';
-import { glbMeta } from './glb.mjs';
+import { PIPELINE_VERSION, glbMeta, toRealSize } from './glb.mjs';
 import { analyzeMaterials, buildTint } from './tint.mjs';
 
 const MODELS = join(DB_DIR, 'seed', 'furniture');
@@ -121,12 +121,13 @@ try {
     const [width, depth, height] = p.size;
     const { rows: [product] } = await db.query(
       `INSERT INTO product (category_id, slug, name, description, blurb, status,
-                            width_mm, depth_mm, height_mm, dimension_unit, price_inr, mrp_inr)
-       VALUES ($1, $2, $3, $4, $5, 'active', $6, $7, $8, 'cm', $9, $10)
+                            width_mm, depth_mm, height_mm, dimension_unit, dimension_source, price_inr, mrp_inr)
+       VALUES ($1, $2, $3, $4, $5, 'active', $6, $7, $8, 'cm', 'MANUFACTURER_SPEC', $9, $10)
        ON CONFLICT (slug) DO UPDATE SET
          category_id = EXCLUDED.category_id, name = EXCLUDED.name, description = EXCLUDED.description,
          blurb = EXCLUDED.blurb, status = 'active', width_mm = EXCLUDED.width_mm, depth_mm = EXCLUDED.depth_mm,
          height_mm = EXCLUDED.height_mm, dimension_unit = EXCLUDED.dimension_unit,
+         dimension_source = EXCLUDED.dimension_source,
          price_inr = EXCLUDED.price_inr, mrp_inr = EXCLUDED.mrp_inr
        RETURNING id`,
       [categoryId.get(p.category), p.slug, p.name, p.description, p.blurb, width, depth, height, p.price, p.mrp],
@@ -134,7 +135,20 @@ try {
 
     let order = 0;
     for (const v of p.variants) {
-      const bytes = readFileSync(join(MODELS, v.file));
+      // Stored at the product's real size, whatever units (or orientation) the file was made in.
+      const source = readFileSync(join(MODELS, v.file));
+      const real = toRealSize(source, { width, depth, height });
+      const bytes = real.bytes;
+      const normalization = JSON.stringify({
+        pipelineVersion: PIPELINE_VERSION,
+        status: real.status,
+        factor: real.factor,
+        turned: real.turned,
+        deviation: real.deviation,
+        sourceSha256: createHash('sha256').update(source).digest('hex'),
+        targetMm: real.targetMm,
+        drawnMm: real.sizeMm,
+      });
       const meta = glbMeta(bytes); // also validates the container
       const sha = createHash('sha256').update(bytes).digest('hex');
 
@@ -168,8 +182,8 @@ try {
         [variant.id],
       );
       if (current?.blob_sha256 === sha) {
-        await db.query('UPDATE model_asset SET tint = $2 WHERE variant_id = $1 AND is_current',
-          [variant.id, tint && JSON.stringify(tint)]);
+        await db.query('UPDATE model_asset SET tint = $2, normalization = $3 WHERE variant_id = $1 AND is_current',
+          [variant.id, tint && JSON.stringify(tint), normalization]);
         console.log(`unchanged  ${v.sku.padEnd(14)} ${v.file}`);
         continue;
       }
@@ -179,9 +193,9 @@ try {
       );
       await db.query('UPDATE model_asset SET is_current = false WHERE variant_id = $1 AND is_current', [variant.id]);
       await db.query(
-        `INSERT INTO model_asset (variant_id, blob_sha256, version, is_current, original_filename, meta, tint)
-         VALUES ($1, $2, $3, true, $4, $5, $6)`,
-        [variant.id, sha, next, v.file, JSON.stringify(meta), tint && JSON.stringify(tint)],
+        `INSERT INTO model_asset (variant_id, blob_sha256, version, is_current, original_filename, meta, tint, normalization)
+         VALUES ($1, $2, $3, true, $4, $5, $6, $7)`,
+        [variant.id, sha, next, v.file, JSON.stringify(meta), tint && JSON.stringify(tint), normalization],
       );
       console.log(`stored     ${v.sku.padEnd(14)} ${v.file.padEnd(17)} v${next}  ${(bytes.length / 1024).toFixed(0)} KB`);
     }

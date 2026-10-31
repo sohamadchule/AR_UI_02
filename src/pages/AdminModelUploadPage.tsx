@@ -1198,7 +1198,7 @@ export function AdminModelUploadPage() {
                     </span>
                   </p>
                   <p className="mt-2 text-xs text-fg-muted">
-                    AR shows the file at its own scale, so for correct AR re-export the model in metres.
+                    AR draws the model at the size you save here (when its shape matches), so the file doesn&apos;t need re-exporting.
                   </p>
                 </div>
               )}

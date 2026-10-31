@@ -1,0 +1,232 @@
+AKRUTI AR - HONEST COMPARISON WITH THE MARKET
+2026-10-26
+=============================================
+
+Why this exists: AR placement was built and tested on a phone, and failed in
+ways a customer would notice at once (pieces kilometres wide, invisible, always
+"overlapping"). Before building more, this compares what the companies already
+doing this ship, and how they get their accuracy, with where Akruti actually
+is.
+
+A note on the evidence: most accuracy claims in this market are the companies'
+own marketing (e.g. IKEA's "98%"). None of them publishes measured error in cm.
+Where something is a vendor claim, it is marked as one.
+
+
+1. WHO DOES THIS, AND WHAT THEY SHIP
+------------------------------------
+
+IKEA (Place, 2017; now Kreativ inside the IKEA app)
+  - Place: true-scale AR on ARKit, later ARCore. IKEA claimed "98% scale
+    accuracy" (its own figure, from 2017).
+  - Kreativ: on LiDAR iPhones/iPads it scans the room into a 3D copy. You can
+    erase your existing furniture and fill the room with IKEA products.
+    Phones without LiDAR fall back to a photo-based wide-angle scan, which
+    reviewers say is less reliable for distances.
+  - Third-party guidance treats it as an inspiration / fit-check tool, "not a
+    measurement tool": verify dimensions before buying.
+
+Wayfair (View in Room 3D, Interactive Photo, Room Planner)
+  - Several products in one room; LiDAR + RealityKit version on iOS.
+  - Real-time lighting and shadows from the room's light; body occlusion
+    (a person can stand in front of a virtual sofa).
+  - Design from a saved photo of the room, away from home.
+  - Claims products are "accurately sized to true dimensions" (own claim).
+    Many features launched on iOS first.
+
+Amazon (View in Your Room / Room Decorator, 2020)
+  - Several products in one room, rearrangeable; add to cart without leaving AR.
+  - Rooms saved to the account ("Your Rooms") and reopened from a saved image.
+  - Built on ARKit; Android came later than iOS.
+
+Houzz (View in My Room 3D)
+  - Several products, on top of rugs; wall and ceiling items (pendant lights),
+    lamps on tables.
+  - Uses the ARCore Depth API to place furniture more accurately (per Google).
+  - A tile tool walks you to each corner of the room to set its outline
+    (the same idea as our "measure room by its corners").
+  - An early reviewer noted the scene didn't stay anchored when the phone
+    moved: even big players shipped stability problems.
+
+3D Cloud (formerly Marxent): B2B platform for retailers (La-Z-Boy, Lowe's...)
+  - Patented multi-product WebAR in the browser, a room planner, and
+    configurable products (sectionals).
+  - Main point: THEY MAKE THE 3D MODELS. They handle content creation, QA and
+    WebAR conversion from the retailer's 2D images or CAD. Turnaround about
+    6-8 weeks per launch.
+
+Avataar (India; worked with Pepperfry), GlamAR (Fynd, India), Cylindo
+  - Make 3D models from existing catalogue photos at scale, then offer
+    true-to-scale AR in the browser or app. These are vendor claims.
+  - This is the closest competition to Akruti's market (Indian furniture
+    retail), and their selling point is the content pipeline, not the AR
+    viewer.
+
+Shopify (the de facto standard for merchants' 3D models)
+  - A model must be "built to real-world scale" in the correct units. The
+    test is: placed in AR next to the real product, "they should be the same
+    size".
+  - Origin centred at the product's base.
+  - About 4 MB total; textures no larger than 2048 x 2048 for mobile web.
+  - The merchant reviews every model against the real product before it goes
+    live.
+
+
+2. WHERE THEIR ACCURACY ACTUALLY COMES FROM
+-------------------------------------------
+  a) Correct 3D models. Every serious player treats the model as a
+     quality-checked asset: built at real size from the product's
+     specification, the origin at the base, a size budget, and a human check
+     against the real product. Accuracy is mostly decided BEFORE the customer
+     opens AR.
+  b) Better sensors where available. LiDAR (iPhone Pro) for room scans;
+     ARCore Depth API on Android for occlusion and placement.
+  c) Honest positioning. Treated as a visual fit check, not a tape measure.
+  d) Native apps for the hardest features (room scanning, saved rooms,
+     occlusion, lighting), with WebAR for reach.
+
+Nobody in these sources publishes measured centimetre error, and nobody was
+found shipping furniture-to-furniture collision warnings as a product feature
+(only patents and a research app). Our overlap and walking-space checks would
+be different from the competition, but only if the sizes underneath are right.
+
+
+3. FEATURE COMPARISON (verified against the sources; "?" = not found)
+---------------------------------------------------------------------
+Feature                       IKEA   Wayfair Amazon Houzz  3D Cloud  Akruti now
+True-scale single product     yes    yes     yes    yes    yes       yes, for 3 of 12 products*
+Several products, one room    ?      yes     yes    yes    yes       built, not yet working on phone
+Works in the browser, no app  no     no      no     no     yes       yes (Android Chrome only)
+Android                       yes    later   later  yes    yes       yes
+iPhone                        yes    yes     yes    yes    yes       old single-product viewer only
+Wall / ceiling / table items  ?      ?       ?      yes    ?         built (guessed from name)
+3D room scan                  LiDAR  LiDAR   no     no     ?         no (not possible on most Android)
+Room outline by corners       ?      ?       ?      yes    ?         built
+Save room, design later       yes    yes     yes    ?      ?         no
+Real-world lighting/shadows   yes    yes     ?      yes    ?         fixed lighting
+Occlusion (depth)             ?      body    ?      depth  ?         no
+Overlap / walkway warnings    ?      ?       ?      ?      ?         built
+Fit check against my space    ?      ?       ?      ?      ?         built
+Models made for the retailer  own    own     own    own    yes       no: the shop must upload a GLB
+Model QA before going live    yes    yes     yes    yes    yes       no
+
+* Live catalogue, 26 Oct 2026: only Mahal sofa, Ira chair and Grid bookshelf
+  have models whose shape matches their listed size. The rest are generic
+  demo models or have wrong data. "Desk" is listed as 10 x 10 x 10 cm and
+  sits in the Lighting category.
+
+
+4. WHERE WE ARE LAGGING: HONESTLY
+---------------------------------
+1. CONTENT, NOT CODE, IS THE BIGGEST GAP.
+   Competitors start from QA'd, real-size models. We accept any GLB:
+     - 5 of 12 live products were drawn kilometres wide in AR
+     - 6 of 12 models are generic Google Poly shapes that are not the products
+     - one product has an impossible listed size (10 x 10 x 10 cm desk)
+     - the sofa is 13 MB / 282,000 triangles, about 3x the usual budget
+       (about 4 MB)
+   No runtime code can make a wrong model accurate. The AR code can only
+   detect it and say so, which it now does.
+
+2. WE BUILT THE ADVANCED FEATURES BEFORE THE BASICS WERE PROVEN.
+   Overlap checks, room measuring and walkway warnings were built on top of
+   wrong sizes, so they produced constant false "overlap" errors. The order
+   should have been: correct models -> one product placed and measured on a
+   phone -> several products -> checks.
+
+3. MY OWN DESIGN MISTAKE. The rule "if the model doesn't match the listed
+   size, show the file's own size" was wrong. For files in absurd units it
+   put a 687 km desk in the room: invisible, and overlapping everything.
+   Fixed (see section 6).
+
+4. NO PHONE TESTING LOOP. The logic was tested on a PC only. Competitors
+   ship after device testing. We have no device list, no measured error
+   numbers, and no on-screen debug readout.
+
+5. NO MODEL PIPELINE FOR SHOPKEEPERS. Our customers are furniture shops that
+   don't have 3D models. Avataar, GlamAR, Cylindo and 3D Cloud win by making
+   the models for them (from photos or CAD). Akruti assumes the shop brings a
+   correct GLB. That is the biggest business gap.
+
+6. ANDROID WEB HAS REAL CEILINGS. Google's own table for Chrome's web AR:
+   hit test, anchors, depth and lighting estimation are SHIPPED; plane
+   detection is only a DEVELOPER TRIAL; instant placement is NOT AVAILABLE.
+   Most Android phones have no LiDAR, so a 3D room scan like IKEA Kreativ's
+   isn't possible in the browser. Guided corner-tapping (what Houzz does for
+   tiles) is the realistic way. We aren't behind here; it's the platform.
+
+7. NOT YET USED, BUT AVAILABLE TO US: Chrome already ships lighting
+   estimation (realistic shading) and the Depth API (occlusion, a real chair
+   hiding the virtual sofa). Wayfair and Houzz use these; we don't yet.
+
+8. MISSING CUSTOMER FEATURES competitors have: saving and sharing a room
+   layout, add-to-cart from inside AR, and an iPhone path for several
+   products.
+
+
+5. WHAT TO DO, IN ORDER
+----------------------
+ 1. Fix the catalogue data now (no code): correct the "Desk" product (size and
+    category); replace or remove the 6 generic demo models; compress the sofa
+    to under 5 MB.
+ 2. Quality gate at upload (admin): refuse or warn when the model's shape
+    doesn't match the entered size by more than 5%, when the size is
+    implausible, or when the file is over about 5 MB / 150k triangles. Show the
+    admin the AR preview at the real size before publishing.
+ 3. Prove one product on real phones: tape-measure test, write down the
+    error, 3 phones. Add a hidden debug overlay (tracking state, floor
+    height, model size) for testing.
+ 4. Only then re-test several products, overlaps and the room tools on
+    phones.
+ 5. Realism: turn on lighting estimation; add depth occlusion on phones that
+    support it.
+ 6. Customer features: save and share a layout, add to cart from AR.
+ 7. Business: a model-creation service or partner for shops without 3D models
+    (the gap that Avataar / GlamAR / 3D Cloud fill).
+
+
+6. FIXED TODAY (after the phone screenshot)
+-------------------------------------------
+  - Models are never drawn at a nonsense size any more:
+      shape matches the listing   -> real size ("real size")
+      shape differs               -> as close to the listing as its shape
+                                     allows, with a notice giving the listed
+                                     size and how far off it is (e.g.
+                                     "differs by up to 20%")
+      no size listed              -> the file's size, corrected by a power of
+                                     ten if its units are clearly wrong
+                                     (km / mm), with a notice
+      still unbelievable (> 6 m or < 5 cm) -> refused, with a message
+  - The product drawer marks products whose size is "approximate" or "not
+    listed" before you add them.
+  - Live catalogue result: all 12 products now come out at believable sizes
+    (e.g. Kaam desk 140 x 82 x 71 cm instead of 687 km).
+
+
+SOURCES
+-------
+IKEA Kreativ: https://www.techradar.com/news/ikeas-new-iphone-app-can-delete-and-replace-your-old-furniture
+IKEA scan help: https://www.ikea.com/gb/en/customer-service/knowledge/articles/250fg37g-2498-40gg-916c-f27d354683f0.html
+Kreativ in 2026 ("not a measurement tool"): https://macmyths.com/ikea-place-review-what-ikea-kreativ-does-in-2026/
+IKEA Place 98% claim: https://www.engadget.com/2017/09/12/ikea-place-augmented-reality-app/
+IKEA Place on ARCore: https://www.xrtoday.com/?p=39122
+Wayfair: https://www.engadget.com/2019/11/14/wayfair-shopping-app-ar/
+Wayfair: https://aboutwayfair.com/augmented-reality-with-a-purpose
+Amazon: https://www.retaildive.com/news/amazon-debuts-ar-tool-for-viewing-multiple-furniture-items-in-one-room/584171
+Amazon: https://www.engadget.com/amazon-ar-shopping-furniture-home-decor-171005257.html
+Houzz: https://www.hfndigital.com/industry-news/houzz-adds-wall-ceiling-options-view-my-room-3d-app
+Houzz (2017 review): https://techcrunch.com/2017/05/03/houzz-adds-a-basic-ar-mode-to-its-ios-apps-to-help-you-shop-for-furniture
+Houzz tiles / corners: https://blog.houzz.com/preview-tiles-in-your-home-using-augmented-reality-with-updated-view-in-my-room-3d-tool/
+ARCore Depth API: https://developers.googleblog.com/en/a-new-wave-of-ar-realism-with-the-arcore-depth-api/
+Depth in Houzz: https://gamesbeat.com/googles-arcore-depth-api-enables-ar-depth-maps-and-occlusion-with-one-camera/
+WebXR vs ARCore on Chrome: https://developers.google.com/ar/develop/webxr/arcore-comparison?hl=en
+3D Cloud / Marxent: https://www.marxentlabs.com/?p=22742
+3D Cloud WebAR: https://developers.3dcloud.com/3d-cloud-webar/docs/new-3d-cloud-webar
+La-Z-Boy + 3D Cloud: https://www.furnituretoday.com/e-commerce/see-what-la-z-boy-is-doing-with-the-latest-ar-technology
+Avataar: https://www.avataar.ai/blog/success-story-of-indias-largest-furniture-marketplace
+Avataar / Pepperfry: https://www.cbinsights.com/company/avataarme
+GlamAR (Fynd): https://www.glamar.io/blog/best-ar-try-on-solutions-for-furniture-brands-in-2026
+Furniture AR vendors: https://www.reality-atlas.com/blog/best-ar-companies-furniture-home-goods
+Shopify 3D model checklist: https://help.shopify.com/partners/resources/creating-3d-models/3d-model-standards-checklist
+3D model budgets: https://www.maverickframe.com/blog/3d-model-requirements-amazon-wayfair-shopify/
+Collision warnings (research app): https://arxiv.org/pdf/2010.06035

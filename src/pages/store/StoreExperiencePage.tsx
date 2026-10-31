@@ -1,10 +1,12 @@
 import { useOutletContext } from 'react-router-dom';
 import type { Brand } from '@/data/brands';
 import { ExperienceBrowser } from '@/features/experience/ExperienceBrowser';
+import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 
 /** The Akruti experience — live 3D, colours, true size, AR by QR — in the shop's own brand kit. */
 export function StoreExperiencePage() {
   const brand = useOutletContext<Brand>();
+  useDocumentTitle(`See it in your room — ${brand.legalName}`);
 
   return (
     <section aria-label="Experience" className="mx-auto w-full max-w-[1180px] px-4 pb-20 pt-10 sm:px-6 md:pt-16">

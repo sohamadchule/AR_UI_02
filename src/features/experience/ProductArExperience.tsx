@@ -1,7 +1,8 @@
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
 
 import ModelViewer from "./ModelViewer";
-import type { Recolor } from "@/lib/color";
+import type { Variant } from "@/lib/api";
+import type { PartPicks, Recolor } from "@/lib/color";
 import { AR_SESSION_MODE, arSessionInit, isImmersiveArSupported } from "@/lib/webxr";
 
 // three.js and the AR scene are only ever needed once someone taps into AR, so
@@ -15,6 +16,10 @@ export interface ProductArExperienceProps {
   alt: string;
   /** Colours for the model's recolourable materials, part by part, in 3D and in AR. */
   recolor?: readonly Recolor[] | null;
+  /** The catalogue variant shown: AR opens with it ready to place, at its real size. */
+  variant: Variant;
+  /** Colours chosen for its extra parts, so AR places it in the same mix. */
+  picks?: PartPicks;
   /** Passed through to ModelViewer. */
   autoRotate?: boolean;
   disableZoom?: boolean;
@@ -38,12 +43,20 @@ export default function ProductArExperience({
   src,
   alt,
   recolor,
+  variant,
+  picks,
   autoRotate,
   disableZoom,
   showArUnavailable,
   cameraOrbit,
 }: ProductArExperienceProps) {
   const [webXrSupported, setWebXrSupported] = useState<boolean | null>(null);
+  // `isSessionSupported` can say yes and `requestSession` still fail: camera
+  // permission refused, Google Play Services for AR missing or mid-update, or
+  // another XR session already running. When that happens the in-page path is
+  // dead for this visit, so hand AR back to Scene Viewer / Quick Look rather
+  // than leaving the customer with a button that cannot work.
+  const [sessionFailed, setSessionFailed] = useState(false);
   const [session, setSession] = useState<XRSession | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Must exist in the DOM before requestSession: it is the dom-overlay root.
@@ -67,7 +80,10 @@ export default function ProductArExperience({
     navigator.xr
       .requestSession(AR_SESSION_MODE, arSessionInit(root))
       .then(setSession)
-      .catch(() => setError("Couldn't start AR. Camera permission may be blocked."));
+      .catch(() => {
+        setSessionFailed(true);
+        setError("Couldn't open the in-page AR view. Use \u201cView in AR\u201d below for your phone's own AR viewer \u2014 it shows one piece at its real size, without the room tools.");
+      });
   }, []);
 
   const handleEnd = useCallback(() => setSession(null), []);
@@ -81,7 +97,7 @@ export default function ProductArExperience({
           src={src}
           alt={alt}
           ar
-          showArButton={webXrSupported === false}
+          showArButton={webXrSupported === false || sessionFailed}
           recolor={recolor}
           autoRotate={autoRotate}
           disableZoom={disableZoom}
@@ -90,7 +106,21 @@ export default function ProductArExperience({
         />
       </div>
 
-      {webXrSupported && !session && (
+      {/*
+        No WebXR here, so AR is handed to Scene Viewer or iOS Quick Look. Those
+        place one product at its real size and nothing more: no second piece, no
+        resizing, no fit tools. Say so rather than let the customer go looking for
+        controls that cannot exist in another app's viewer.
+      */}
+      {(webXrSupported === false || sessionFailed) && (
+        <p className="pointer-events-none absolute inset-x-0 bottom-0 px-4 pb-16 text-center text-[11px] leading-snug text-fg-muted">
+          On this device AR shows one piece at a time, at its listed size. To place several
+          pieces, resize them or check the fit in your room, open this page in Chrome on an
+          ARCore-supported Android phone.
+        </p>
+      )}
+
+      {webXrSupported && !sessionFailed && !session && (
         <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-center gap-1 p-3">
           <button
             type="button"
@@ -111,7 +141,7 @@ export default function ProductArExperience({
       <div ref={overlayRef}>
         {session && (
           <Suspense fallback={null}>
-            <ArScene src={src} session={session} onEnd={handleEnd} recolor={recolor} />
+            <ArScene session={session} onEnd={handleEnd} variant={variant} picks={picks} />
           </Suspense>
         )}
       </div>

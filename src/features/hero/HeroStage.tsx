@@ -76,6 +76,7 @@ export function HeroStage() {
           src={active.model.url}
           alt={`3D model of the ${active.product.name} in ${active.name}`}
           recolor={recolorOf(active)}
+          variant={active}
           autoRotate
           disableZoom
           showArUnavailable={false}

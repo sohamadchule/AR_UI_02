@@ -5,9 +5,11 @@ import type { Brand } from '@/data/brands';
 import { storeCraftPath, storePath, telLink, whatsappLink } from '@/data/brands';
 import { showroomBySlug } from '@/data/showrooms';
 import { useAsync } from '@/hooks/useAsync';
+import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 import { ModelStage } from '@/features/experience/ModelStage';
 import { QrPanel } from '@/features/experience/QrPanel';
 import { PartColourRows } from '@/features/experience/ColourSwatches';
+import { FitCheck } from '@/features/experience/FitCheck';
 import { usePartPicks } from '@/hooks/usePartPicks';
 import { tintParts } from '@/lib/color';
 import {
@@ -89,6 +91,7 @@ export function StoreProductPage() {
         (curate(catalogue.data.products, brand.flagship).find((p) => p.slug === productSlug) ??
         catalogue.data.products.find((p) => p.slug === productSlug))
       : undefined;
+  useDocumentTitle(product ? `${product.name} — ${brand.legalName}` : brand.legalName);
 
   if (catalogue.status === 'loading') {
     return <p role="status" className="py-28 text-center text-sm text-fg-muted">Loading…</p>;
@@ -225,6 +228,8 @@ export function StoreProductPage() {
               <p className="text-sm text-fg-subtle">{doorwayNote(dims)}</p>
             </div>
           )}
+
+          {shown && <FitCheck variant={shown} />}
 
           {showroom ? (
             // A showroom shop sells in person: no bag or delivery estimate, just real ways to reach the shop.

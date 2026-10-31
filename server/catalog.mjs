@@ -7,10 +7,10 @@ export const isUuid = (value) => UUID.test(value);
 const SELECT_VARIANTS = `
   SELECT v.id, v.sku, v.name, v.material, v.color_hex, v.is_default,
          p.id AS product_id, p.slug AS product_slug, p.name AS product_name, p.description,
-         p.width_mm, p.height_mm, p.depth_mm, p.dimension_unit,
+         p.width_mm, p.height_mm, p.depth_mm, p.dimension_unit, p.dimension_source,
          p.price_inr, p.mrp_inr, p.blurb,
          c.slug AS category_slug, c.name AS category_name,
-         b.sha256, b.size_bytes, a.meta, a.version, a.tint
+         b.sha256, b.size_bytes, a.meta, a.version, a.tint, a.normalization
     FROM product_variant v
     JOIN product p        ON p.id = v.product_id AND p.status = 'active'
     JOIN category c       ON c.id = p.category_id
@@ -43,6 +43,9 @@ function toPublic(row) {
       mrpInr: row.mrp_inr === null ? null : Number(row.mrp_inr),
       dimensionsMm: dims,
       dimensionUnit: row.dimension_unit,
+      // Where the listed size came from. A model can agree perfectly with a guess,
+      // so agreement (model.normalization.status) and provenance are kept apart.
+      dimensionSource: row.dimension_source ?? 'UNKNOWN',
     },
     category: { slug: row.category_slug, name: row.category_name },
     model: {
@@ -51,6 +54,8 @@ function toPublic(row) {
       sizeBytes: row.size_bytes,
       version: row.version,
       dimensionsM: size ? { width: size[0], height: size[1], depth: size[2] } : null,
+      // How this asset was brought to the listed size, or null if it never was.
+      normalization: row.normalization ?? null,
       tint: row.tint
         ? {
             materials: row.tint.materials.map(({ index, texAvg, base, sheen }) => ({ index, texAvg, base, sheen })),

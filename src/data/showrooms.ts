@@ -79,7 +79,6 @@ export interface Showroom {
     teamPhoto: Photo | null;
   };
   visit: { title: [string, string] };
-  closing: { title: [string, string]; lede: string; photo: Photo };
   /** One-line description for the footer. */
   footerBlurb: string;
   social: { label: string; url: string }[];
@@ -150,11 +149,6 @@ export const SHOWROOMS: readonly Showroom[] = [
       teamPhoto: null,
     },
     visit: { title: ['See it in person.', 'We’d love to welcome you.'] },
-    closing: {
-      title: ['Your next favourite piece', 'is waiting to be discovered.'],
-      lede: 'Explore our collection online or visit our showroom to experience the furniture in person.',
-      photo: { base: `${photos}/closing`, alt: 'A warm living room under woven pendant lights', focus: '50% 55%' },
-    },
     footerBlurb: 'A furniture showroom in Belagavi. Explore the collection online in 3D, then come and see it in person.',
     social: [],
     placeholders: { photos: true, story: true, contact: true, highlights: true },
@@ -172,6 +166,8 @@ export const photoProps = (photo: Photo, sizes = '100vw') => ({
   srcSet: `${asset(`${photo.base}-1000.jpg`)} 1000w, ${asset(`${photo.base}-2000.jpg`)} 2000w`,
   sizes,
   alt: photo.alt,
+  // Lets dark mode tone photography down (index.css), so bright rooms don't glare off a dark page.
+  'data-photo': true,
 });
 
 export const productImage = (showroom: Showroom, productSlug: string) => asset(`${showroom.collection.imageDir}/${productSlug}.webp`);

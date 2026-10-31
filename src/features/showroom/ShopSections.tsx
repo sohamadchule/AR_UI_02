@@ -98,6 +98,23 @@ export function ShopAbout({ brand, showroom }: { brand: Brand; showroom: Showroo
             <PlaceholderNote show={showroom.placeholders.story}>sample story — replace with the owner’s own words</PlaceholderNote>
           </div>
 
+          <div className="mt-8 flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={() => scrollToSection(SECTION.collection)}
+              className="inline-flex h-12 items-center rounded-full bg-fg px-7 text-sm font-medium text-surface transition-opacity hover:opacity-90"
+            >
+              Explore the Collection
+            </button>
+            <button
+              type="button"
+              onClick={() => scrollToSection(SECTION.visit)}
+              className="inline-flex h-12 items-center rounded-full border border-line/25 px-7 text-sm font-medium transition-colors hover:border-fg/60"
+            >
+              Visit Our Store
+            </button>
+          </div>
+
           <dl className="mt-10 grid grid-cols-2 gap-x-8 gap-y-6 border-t border-line/12 pt-7 sm:grid-cols-3">
             {facts.map(([k, v]) => (
               <div key={k}>
@@ -217,44 +234,6 @@ export function ShopContact({ brand, showroom }: { brand: Brand; showroom: Showr
             />
           </Reveal>
         </div>
-      </div>
-    </section>
-  );
-}
-
-/* ----------------------------------------------------------- closing */
-
-export function ShopClosing({ showroom }: { showroom: Showroom }) {
-  const { closing } = showroom;
-  return (
-    <section aria-labelledby="closing-title" className="relative isolate overflow-hidden bg-night text-ivory">
-      <img {...photoProps(closing.photo)} loading="lazy" className="absolute inset-0 -z-20 h-full w-full object-cover" style={{ objectPosition: closing.photo.focus }} />
-      <div aria-hidden className="absolute inset-0 -z-10 bg-[linear-gradient(to_top,rgb(var(--night)/0.92),rgb(var(--night)/0.45))]" />
-      <div className="mx-auto flex min-h-[80svh] w-full max-w-[1280px] flex-col justify-end px-5 pb-20 pt-40 sm:px-8 md:pb-28">
-        <Reveal className="max-w-3xl">
-          <h2 id="closing-title" className="font-display text-[clamp(2.6rem,6vw,5.4rem)] leading-[1]">
-            {closing.title[0]}
-            <br />
-            <em className="text-ivory/80">{closing.title[1]}</em>
-          </h2>
-          <p className="mt-6 max-w-[46ch] text-lg leading-relaxed text-ivory/80">{closing.lede}</p>
-          <div className="mt-10 flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={() => scrollToSection(SECTION.collection)}
-              className="inline-flex h-12 items-center rounded-full bg-ivory px-7 text-sm font-medium text-night transition-colors hover:bg-white"
-            >
-              Explore the Collection
-            </button>
-            <button
-              type="button"
-              onClick={() => scrollToSection(SECTION.visit)}
-              className="inline-flex h-12 items-center rounded-full border border-ivory/35 px-7 text-sm font-medium transition-colors hover:border-ivory/80"
-            >
-              Visit Our Store
-            </button>
-          </div>
-        </Reveal>
       </div>
     </section>
   );
