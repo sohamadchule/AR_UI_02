@@ -9,7 +9,6 @@ import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 import { ModelStage } from '@/features/experience/ModelStage';
 import { QrPanel } from '@/features/experience/QrPanel';
 import { PartColourRows } from '@/features/experience/ColourSwatches';
-import { FitCheck } from '@/features/experience/FitCheck';
 import { usePartPicks } from '@/hooks/usePartPicks';
 import { tintParts } from '@/lib/color';
 import {
@@ -229,8 +228,6 @@ export function StoreProductPage() {
             </div>
           )}
 
-          {shown && <FitCheck variant={shown} />}
-
           {showroom ? (
             // A showroom shop sells in person: no bag or delivery estimate, just real ways to reach the shop.
             <div className="flex flex-wrap gap-3">
@@ -315,9 +312,9 @@ export function StoreProductPage() {
         <section className="mt-12 rounded-store border border-line/12 bg-surface-raised p-5 sm:p-7">
           <h2 className="mb-1 font-display text-xl tracking-tight">See it in your own room</h2>
           <p className="mb-6 max-w-[55ch] text-sm text-fg-muted">
-            Scan this with an Android phone to open the piece in AR. It measures your floor and walls, then checks{' '}
-            {dims ? `${Math.round(dims.width)} × ${Math.round(dims.depth)} × ${Math.round(dims.height)} cm` : 'the real size'}{' '}
-            against the space you point it at.
+            Scan this with an Android phone to place{' '}
+            {dims ? `the ${Math.round(dims.width)} × ${Math.round(dims.depth)} × ${Math.round(dims.height)} cm piece` : 'it'}{' '}
+            in your own room. Add more furniture, resize and rearrange until you like it.
           </p>
           <QrPanel variant={shown} picks={picks} />
         </section>
